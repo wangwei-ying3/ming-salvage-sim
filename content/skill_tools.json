@@ -1,0 +1,20 @@
+{
+  "audit_tax_arrears": "毕自严清账：{target}可先列三册：实欠、蠲免、豪右拖欠。若皇威足、户部得专旨，一月可追回约80到120万两；若东林与士绅合阻，则账成而银未必到库。",
+  "check_treasury_prefix": "查账：",
+  "allocate_payroll": "户部核饷：{target}若只求稳军，至少拨80万两；若补旧欠，需120万两以上。须指定经手衙门和验收回奏，否则半途挪借、漂没难免。",
+  "check_military": "{event_title}军情复核：边防压力{border_pressure}。军队警讯：{army_warning}。前线奏报可信度有限，欠饷会先伤士气，再伤守城。",
+  "front_line_plan": "袁崇焕前线部署：{event_title}宜先稳宁锦，补发欠饷，严禁将领虚报冒饷。关宁盘面：{army_detail}。若给饷给权，军队满意可升；若只问责不给银，前线将领会报喜不报忧。",
+  "strategic_review": "孙承宗复核：{event_title}不可只看一镇急奏，需核宁锦、山海、京营三处。军队警讯：{army_warning}。先定守势名分，再给袁崇焕责权，东林较易接受；若绕过部议，清流会疑边臣擅权。",
+  "inner_court_inquiry": "内廷查访：{event_title}牵涉{interests}。宫中旧人多求自保，可传话、封存账册，但不宜代外朝定罪。",
+  "secret_investigation": "密查回报：{subject}与{event_title}有关。奏报未必尽实，若深挖恐牵连多人，可得真情，也会激起外朝疑惧。",
+  "factory_network_probe": "魏忠贤旧线密报：{event_title}下，{target}多在观望。若陛下借厂卫查账，三日可得把柄；但东林满意会降，皇威不足时反成清议攻讦。",
+  "intimidate_obstruction": "东厂威慑：{target}可立时收声，短期执行加快。但若无圣旨边界，外朝会以厂卫复炽相攻，党争上升。",
+  "convene_court_debate": "廷议可办{event_title}，好处是名分较正、责任可分；坏处是科道争论、党争牵扯，恐误一月。",
+  "estimate_project_workshop": "工部估算：小局试办至少费国库40万两，另需匠役、硝硫、铁料和户部按月给银；若无人护持，旧吏会拖验收。",
+  "estimate_project_default": "工部估算：{event_title}若涉工程器械，先按20到40万两试办，须验收实物，不可只看文书。",
+  "draft_edict": "命{executor}承办{event_title}一事，依“{policy}”办理。本月先查明实情，核实钱粮与经办人，限一月以实数回奏；若有截留、虚报、扰民，具名参处。",
+  "directive_generic": "命{actor}承办{event_title}：{action}。限本月具实回奏。",
+  "directive_funds": "命{actor}核办{event_title}，从{account}调度{amount}，专用于{purpose}，逐项造册回奏，不得截留挪用。",
+  "directive_troops": "命{actor}承办{event_title}，调度{target}，{action}，不得虚报兵额，限本月以军情实数回奏。",
+  "directive_investigation": "命{actor}承办{event_title}，以{method}查核{target}，只取实据，不得株连扰民，限本月密奏。"
+}

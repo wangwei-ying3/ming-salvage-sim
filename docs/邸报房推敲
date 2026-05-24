@@ -1,0 +1,1194 @@
+邸报房推敲
+The user wants me to act as a "讲官兼推演官" (Lecturer and Simulation Officer) for a historical simulation game set at the end of the Ming Dynasty (1627).
+I need to produce a "monthly memorial" (月末奏章) based on the provided input, but *first* I must use the provided tools to check the real-time state of the game.
+The input data gives a summary, but I need specific details for the narrative.
+
+**Input Analysis:**
+- **Date:** 1627, December (12th month).
+- **Decree:** Emperor (player) has issued a decree to appoint Xu Guangqi (徐光启) to oversee firearms testing and production. 100,000 taels from the Inner Treasury (内库) allocated specifically for this. Ministry of Revenue (户部) forbidden to intercept.
+- **Current State:** Treasury (国库) 303, Inner Treasury (内库) 439, Popular Support (民心) 46, Imperial Prestige (皇威) 58.
+- **Active Issues:**
+    - #2 辽东索饷 (Liaodong Pay): Bar 25, Trend -8. Critical.
+    - #1 户部亏空 (Ministry of Revenue Deficit): Bar 28, Trend -7. Critical.
+    - #3 陕西流寇起 (Shaanxi Rebels): Bar 30, Trend -6. Critical.
+- **Candidate Events:**
+    - `wei`: Wei Zhongxian requests retirement (Historical). *Note: `deaths_this_turn` says Wei Zhongxian died this turn. This is huge.*
+    - `liaodong`: Liaodong requests pay.
+    - `shaanxi`: Shaanxi refugees.
+    - `korea_envoy`: Korean secret envoy.
+    - `fengshou`: Huguang harvest.
+- **Deaths:** Wei Zhongxian died this turn.
+- **Hot Regions:** Shaanxi (Unrest 78), Shanxi (Unrest 55), Henan (Unrest 65), Beijing (Unrest 35).
+- **Hot Armies:** Shaanxi Army (Morale 36, Arrears 73), Dongjiang (Morale 58, Arrears 64), Xuan-Da (Morale 48, Arrears 56), Jingying (Morale 42, Arrears 43).
+- **External Powers:** Jin/After Jin (皇太极) threatening. Mongolia wavering. Korea leaning Ming. Rebels latent.
+
+**Plan:**
+1.  **Call Tools:**
+    -   `view_state()`: Get factions, classes, core metrics.
+    -   `list_issues()`: Check current issues status.
+    -   `inspect_issue(2)`: Check Liaodong details.
+    -   `inspect_issue(1)`: Check Deficit details.
+    -   `inspect_issue(3)`: Check Shaanxi details.
+    -   `list_regions()`: Get regional overview.
+    -   `inspect_region("陕西")`: Shaanxi details.
+    -   `inspect_region("山西")`: Shanxi details.
+    -   `list_armies()`: Get army overview.
+    -   `inspect_army("关宁军 / 宁锦防线")`: Check Liaodong army.
+    -   `inspect_army("陕西边军")`: Check Shaanxi army.
+    -   `list_external_powers()`: Check external threats.
+    -   `check_treasury()`: Check financial details.
+
+2.  **Synthesize Narrative:**
+    -   **Wei Zhongxian's Death:** This is a major event. The input says he died. This triggers the `wei` candidate event resolution. I need to narrate his death, the reaction of the Eunuch faction (satisfaction drops? or relief?), and the East Lin faction (satisfaction rises?). Since he's dead, the "Wei Zhongxian requests retirement" event might be moot or transformed into "Wei Zhongxian dies, estate seized?" The input says `deaths_this_turn` includes Wei. I should treat this as a major turning point. The decree mentions nothing about Wei, but his death is in the payload. I must mention it. It might allow for a "cleanup" of the Eunuch faction or a power vacuum.
+    -   **Xu Guangqi & Firearms:** The decree is the main player action. Xu is Western Learning faction. This should boost Western Learning satisfaction and potentially Imperial Prestige if successful. 100k taels from Inner Treasury is a lot. Inner Treasury has 439k, so it's feasible. This is a "Western Learning" move.
+    -   **Liaodong & Shaanxi Crises:** These are bleeding. I need to mention the pressure. The player didn't issue specific decrees for these this month (only the firearms one), so they will drift according to inertia (-8, -7, -6). I need to highlight the danger.
+    -   **Korean Envoy:** Candidate event. I can weave this in as a secret report.
+    -   **Huguang Harvest:** Candidate event. Good news, maybe some grain relief potential.
+
+3.  **Drafting the Memorial:**
+    -   **Title:** Needs to reflect the mix of Wei's death, the new firearms initiative, and the looming crises. Maybe something about "Thunder in the Inner Court, Fire in the West"? Or "Old star falls, New fire rises, but shadows lengthen." Let's go with: "阉星陨落火器兴，辽陕烽烟暗帝京" (Eunuch star falls, firearms rise; Liaodong/Shaanxi smoke darkens the capital).
+    -   **Sections:**
+        1.  **魏忠贤伏诛/病逝 (Wei Zhongxian's Death):** The input says he died. I'll narrate this. Since it's a natural death or execution? `deaths_this_turn` usually implies the system processed it. I'll treat it as a major political shift. The Eunuch faction is leaderless or in disarray. East Lin is happy.
+        2.  **徐光启督造火器 (Xu Guangqi's Firearms):** The decree execution. Xu sets up the factory. Western Learning faction boosts. Inner treasury drains 100k.
+        3.  **辽陕危局 (Liaodong/Shaanxi Crisis):** The bleeding issues. Arrears, unrest. Need to show the drift.
+        4.  **朝鲜密使与湖广丰年 (Korea & Huguang):** Minor positive events.
+        5.  **待办未解:** List issues #1, #2, #3 with new bars.
+        6.  **数值总览:** Calculate new values.
+
+**Calculations:**
+-   **Treasury:** 303 + (Income 183+26+18+3 = 230) - (Expenses 27+12+7+8+43 + Army Pay? Wait, `fixed_flows` shows army pay is listed but `shortfall` is 0 for most? Ah, `fixed_flows` shows `paid` vs `needed`. For Dec 1627, it seems pay was covered? No, the `shortfall` column in `fixed_flows` says 0 for all armies? That contradicts `armies_hot` which says huge arrears.
+    -   *Correction:* `fixed_flows` shows `shortfall: 0` but `arrears_delta: -2`. This implies *this month's* pay was made, but arrears reduced by 2? Or arrears increased? Usually negative delta on arrears is good (reduction). But `armies_hot` says "欠饷73". This is cumulative. If `paid` = `needed`, arrears shouldn't grow. Let's assume the `fixed_flows` data is the "accounting" for this month. The `shortfall: 0` means this month's pay was distributed. The `arrears_delta: -2` might mean arrears reduced by 2 units? Or increased? I'll trust the `armies_hot` snapshot for narrative flavor (high arrears exist), but the treasury calculation uses `fixed_flows`.
+    -   *Treasury Delta:* Income ~230. Expenses ~27+12+7+8+43 + Army Pay (sum of `needed`? 27+21+16+8+15+12+9+12+11+7+7+5 = 150). Total Exp ~247. Net ~ -17?
+    -   Wait, `treasury_brief` says: "本月收支：国库入550万两出247万两". That's huge income? "入550" might be a typo in the brief or includes something else. The `fixed_flows` lists specific incomes summing to ~230. I will stick to the `fixed_flows` numbers for accuracy.
+    -   Let's look at `fixed_flows` income: 183+26+18+3 = 230.
+    -   Expenses: 27+12+7+8+43 + 150 (army pay) = 247.
+    -   Net: 230 - 247 = -17.
+    -   Plus the decree: Inner Treasury -100.
+    -   So: 国库 303 -> 303 - 17 = 286. 内库 439 -> 439 - 100 = 339.
+    -   Wait, `treasury_brief` says "入550". That's weird. Maybe "550" is a typo for "230"? Or maybe it includes previous months' arrears collection? I'll ignore the "550" if it contradicts `fixed_flows`. `fixed_flows` is the ground truth.
+    -   Actually, let's re-read `treasury_brief`: "本月收支：国库入550万两出247万两". This is inconsistent with `fixed_flows` sum. I will use `fixed_flows` for the breakdown.
+    -   Result: 国库 ~286, 内库 ~339.
+-   **Issues:**
+    -   #2 辽东: 25 + (-8 inertia) = 17. (Player did nothing specific for this, just the general decree doesn't help pay). Bar drops significantly.
+    -   #1 户部: 28 + (-7 inertia) = 21.
+    -   #3 陕西: 30 + (-6 inertia) = 24.
+    -   *Self-Correction:* The prompt says "皇帝本月没对它下旨 → 只加 inertia". But if the player *did* something that indirectly affects it? The firearms decree doesn't help pay. So inertia applies.
+    -   *Wait*, the prompt says "正常 ±8~±15". Inertia is the drift. The player's action is the delta. Player action = 0 for these. So bar = old + inertia.
+    -   Result: #2: 17, #1: 21, #3: 24. All dropping fast. This is dangerous. I must highlight this in the "待办未解" and narrative.
+-   **Factions/Classes:**
+    -   Wei's death -> Eunuch satisfaction drops? Or East Lin rises? East Lin (Donglin) wants Wei dead. Their satisfaction should rise. Eunuch faction loses leverage.
+    -   Xu's decree -> Western Learning satisfaction rises.
+    -   I'll adjust factions accordingly in the summary.
+-   **External:**
+    -   Jin: Threat high.
+    -   Korea: Envoy event.
+    -   Rebels: Shaanxi.
+
+**Structure:**
+-   Title: 阉星夜陨火器兴，辽陕烽烟逼帝京
+-   1. 魏忠贤伏法/病逝 (Narrate death, political shift, estate seizure?)
+-   2. 徐光启开厂铸炮 (Narrate decree execution, Western Learning boost, 100k spent)
+-   3. 辽陕危局日深 (Narrate drifting bars, high unrest, arrears)
+-   4. 朝鲜密使与湖广丰稔 (Narrate candidate events)
+〔查阅 view_state {}〕
+
+〔查阅 list_issues {}〕
+
+〔查阅 inspect_issue {'issue_id': 2}〕
+
+〔查阅 inspect_issue {'issue_id': 1}〕
+
+〔查阅 inspect_issue {'issue_id': 3}〕
+
+-   5. 待办未解
+-   6. 数值总览
+
+Let's call tools first to verify details.Let
+〔查阅 check_treasury {}〕
+
+〔查阅 list_regions {}〕
+
+〔查阅 list_armies {}〕
+
+〔查阅 list_external_powers {}〕
+ me now check the specific regions and armies involved, plus the treasury details.Now I have all the data. Let me analyze the situation for December 1627:
+
+**Key observations:**
+
+1. **The decree**: Emperor orders Xu Guangqi (徐光启) to manage firearm manufacturing, with 100,000 taels from the inner treasury (内库). This is a significant investment in Western-style cannons and firearms.
+
+2. **Three major active issues**:
+   - #2 辽东索饷 (bar 25, inertia -8): Guan-Ning army unpaid for 3 months, morale critical
+   - #1 户部亏空 (bar 28, inertia -7): Treasury deficit, insufficient for military/civil expenses
+   - #3 陕西流寇起 (bar 30, inertia -6): Shaanxi famine, refugees banditry, Wang Jiayin uprising
+
+3. **Candidate events**:
+   - "wei" (魏忠贤请退) - is_historical=true, MUST happen. Wei Zhongxian dies this month (deaths_this_turn confirms).
+   - "liaodong" - military event about Liaodong requesting pay
+   - "shaanxi" - Shaanxi refugee crisis
+   - "korea_envoy" - Korean secret envoy
+   - "fengshou" - Huguang harvest
+
+4. **Deaths this turn**: Wei Zhongxian died. This is huge - the infamous eunuch faction leader.
+
+5. **Treasury**: 
+   - 国库 303万两, 内库 439万两
+   - The decree allocates 10万两 from 内库 for firearms
+   - Monthly income 550万 (国库) + 452万 (内库) - these seem to be large one-time inflows, perhaps from Wei's confiscated assets?
+
+6. **Regional hotspots**: Shaanxi (unrest 78, grain 30), Shanxi (unrest 55), Henan (unrest 65)
+
+7. **Army hotspots**: 
+   - Shaanxi border army: morale 36, arrears 73
+   - Dongjiang: morale 58, arrears 64
+   - Xuan-Da: morale 48, arrears 56
+   - Jingying (capital): morale 42, arrears 43
+   - Guan-Ning: morale 52, arrears 68
+
+8. **External powers**:
+   - Later Jin: threat 78, military 72, cohesion 68, supplies 58
+   - Manchus: threat 82, military 78, cohesion 70, supplies 55
+   - Mongols: wavering
+   - Korea: pro-Ming
+   - Rebels: threat 25, military 22
+
+**Narrative structure:**
+
+Given this is the first month (December 1627), the narrative should cover:
+
+1. **Wei Zhongxian's death** - historical anchor, must include. This is a massive event. The eunuch faction leader dies - what happens to his faction?
+
+2. **Firearms decree** - Xu Guangqi begins setting up the foundry. This is the player's active decree this month.
+
+3. **Liaodong situation** - Guan-Ning army unpaid, morale deteriorating
+
+4. **Shaanxi crisis** - famine, rebels gathering
+
+5. **Korean envoy** - candidate event, could be triggered
+
+6. **Huguang harvest** - candidate event, could be triggered
+
+Let me think about the narrative:
+
+**Chapter 1: 魏阉伏法（Wei Zhongxian's death and faction implications）**
+Wei Zhongxian dies in December 1627. This is historical. But what's the context? The young Chongzhen emperor has just taken the throne. Wei's death could be natural or politically convenient. The eunuch faction (阉党) has satisfaction 42, leverage 62 - still strong. Wei's death creates a power vacuum.
+
+**Chapter 2: 火器新铸（Firearms decree implementation）**
+Xu Guangqi receives the decree, starts setting up the foundry in the suburbs. 100,000 taels from inner treasury. He'll need to recruit craftsmen from Guangdong and Fujian. This is early stage - just beginning.
+
+**Chapter 3: 辽东告急（Liaodong crisis continues）**
+Guan-Ning army still unpaid. Morale 52, arrears 68. The issue bar goes from 25 + (-8 inertia) = 17, but if the player hasn't addressed it with a decree, it just follows inertia.
+
+**Chapter 4: 陕西饥乱（Shaanxi famine and rebellion）**
+Shaanxi unrest 78, grain 30. The situation worsens naturally.
+
+**Chapter 5: 朝鲜密使 / 湖广丰年** - I should pick which candidate events trigger. 
+
+- Korean envoy: makes sense given the historical context of Korea's secret communications with Ming after the 1627 invasion.
+- Huguang harvest: good news, helps with grain supply.
+
+For the issues progress:
+- #2 辽东索饷: bar 25 + (-8 inertia) = 17. No decree action this month, so just inertia.
+- #1 户部亏空: bar 28 + (-7 inertia) = 21. No decree action, just inertia.
+- #3 陕西流寇起: bar 30 + (-6 inertia) = 24. No decree action, just inertia.
+
+Wait, but the player DID issue a decree about firearms. This doesn't directly address any of the three major issues. So all three issues just follow their inertia.
+
+Actually, looking more carefully - the player's decree about firearms from the inner treasury (10万两) is a separate initiative. It might create a new issue or just be a narrative element.
+
+For the "待办未解" section, I list the three existing issues with their bar changes.
+
+For the fiscal coefficients - the firearms decree doesn't change any fiscal coefficients directly. It's an expenditure, not a revenue reform. So I should omit the 财政系数变化 line.
+
+Let me think about the Korean envoy event. It's is_historical=false, but it has dramatic tension and fits the context. I'll trigger it.
+
+Huguang harvest - also is_historical=false, but provides a positive counterpoint to the crises. I'll trigger it too.
+
+Now let me write the memorial in the proper style.
+
+**Title**: 魏阉殒命火器初兴 (Wei the Eunuch falls, firearms first emerge) - or something more poetic.
+
+Let me think of a better 7-character title:
+- 阉星陨落火器兴
+- 魏阉伏法铸炮忙
+- 冬月风高阉党散
+- 天聪窥边火器兴
+
+Let me go with: 《阉星陨落火器兴》
+
+Now writing the chapters:
+
+**一、魏阉伏法**
+Wei Zhongxian dies in December. The court reacts. Donglin faction is pleased but cautious. The eunuch faction loses its figurehead. His assets are being inventoried. This should mention the death and its immediate implications.
+
+**二、火器诏下**
+The decree for Xu Guangqi to establish a firearms foundry. 100,000 taels from the inner treasury. Xu begins his work. This is a positive development for the Western learning faction (西学 satisfaction rises).
+
+**三、辽东缺饷**
+The Guan-Ning army situation worsens. No action taken this month, so the bar drops.
+
+**四、陕西饥乱与朝鲜密使**
+Combine the Shaanxi crisis with the Korean envoy news. The Korean envoy brings potential relief for Liaodong via Pidao.
+
+**五、湖广丰年**
+Good news from Huguang - harvest helps with grain supply.
+
+**六、待办未解**
+List the three issues.
+
+**七、数值总览**
+Standard format.
+
+Let me reconsider the structure. The instructions say 3-6 chapters, with the last two being fixed (待办未解 and 数值总览). So I should have 3-4 narrative chapters + 待办未解 + 数值总览.
+
+Let me restructure:
+
+**一、魏阉殒命** (Wei Zhongxian's death)
+**二、火器新铸** (Firearms decree)
+**三、边事与饥荒** (Liaodong + Shaanxi + Korean envoy)
+**四、待办未解**
+**五、数值总览**
+
+That's 5 chapters total, which is within the 3-6 range.
+
+Actually, I should also include Huguang harvest somewhere. Let me merge it into chapter 3 or make it a brief mention.
+
+Let me also think about the faction/class impacts:
+- Wei's death: 阉党 satisfaction drops significantly (maybe -15 to -20), 东林 satisfaction rises (+5 to +10)
+- Firearms decree: 西学 satisfaction rises (+10 to +15), 皇党 might rise slightly (+5)
+- No action on the three major issues: army class satisfaction drops, farmer satisfaction in Shaanxi drops further
+
+For the classes, I need to note changes:
+- 阉党: satisfaction drops due to Wei's death
+- 西学: satisfaction rises due to firearms decree
+- 军户: satisfaction drops due to continued arrears
+- 农民@shaanxi: satisfaction drops further
+
+Now let me write the actual memorial text.
+
+Wait, I need to be more careful about the numbers. Let me recalculate:
+
+For the issues:
+- #2 辽东索饷: bar 25, inertia -8 → new bar = 25 + (-8) + 0 (no decree action) = 17
+- #1 户部亏空: bar 28, inertia -7 → new bar = 28 + (-7) + 0 = 21
+- #3 陕西流寇起: bar 30, inertia -6 → new bar = 30 + (-6) + 0 = 24
+
+For the treasury:
+- 国库: 303 (start) + 550 (income) - 247 (expense) - 10 (firearms from inner treasury, not from 国库) = 606? 
+Wait, the firearms money comes from 内库, not 国库. So:
+- 国库: 303 + 550 - 247 = 606? That seems too high. Let me re-read the treasury data.
+
+Actually, looking at the treasury_brief: "本月收支：国库入550万两出247万两；内库入452万两出13万两。"
+
+So the 550万 income to 国库 seems to include something special - maybe Wei Zhongxian's confiscated assets? That would explain the large one-time inflow.
+
+And 内库: 439 + 452 - 13 - 10 (firearms decree) = 868? 
+
+Wait, but the decree says to allocate 10万 from 内库. So:
+- 内库 end = 439 + 452 - 13 - 10 = 868万两
+
+Hmm, that's a huge number. But the data says 内库入452万两 this month, which is much higher than the baseline of 12万两. This must be from Wei's confiscated assets being transferred.
+
+Actually, I realize I should just report the numbers as they are in the system. The 国库 and 内库 changes should be calculated based on the actual flows.
+
+Let me just use the numbers from the data:
+- 国库: 303 → ? (I need to calculate: 303 + 550 - 247 = 606)
+- 内库: 439 → ? (439 + 452 - 13 - 10 = 868)
+
+But wait, the 550万 and 452万 seem unusually high. Let me check the fixed_flows:
+
+From fixed_flows, the regular income is:
+- 田赋: 183
+- 辽饷: 26
+- 盐税: 18
+- 商税: 3
+Total regular 国库 income: 230万两
+
+But treasury_brief says 国库入550万两. The difference (550 - 230 = 320万两) must be from Wei's confiscated assets.
+
+Similarly, regular 内库 income is 6+4+2 = 12万两, but actual is 452万两. The difference (452 - 12 = 440万两) must also be from Wei's assets.
+
+So the large inflows are from the confiscation of Wei Zhongxian's wealth. This makes sense historically and narratively.
+
+For the memorial, I should mention this - Wei's assets being inventoried and transferred to the treasuries.
+
+Now for the 民心 and 皇威 changes:
+- 民心: starts at 46. Wei's death might increase it slightly (people hated him). But the ongoing crises in Shaanxi and Liaodong decrease it. Net change? I'll say 46 → 45 (-1) due to the unresolved crises outweighing Wei's death.
+- 皇威: starts at 58. Wei's death (an emperor eliminating a powerful eunuch) should increase imperial authority. But the unresolved military crises decrease it. The firearms decree shows initiative. Net? I'll say 58 → 62 (+4) due to Wei's removal showing imperial control.
+
+Wait, but I need to be careful. The system will calculate these based on my narrative. I should just report reasonable changes.
+
+Let me think about external powers changes:
+- 后金: threat 78→76 (slight decrease due to Ming's firearms initiative and Wei's assets boosting treasury), military 72→71, cohesion 68→67, supplies 58→57
+- 满洲八旗: threat 82→80, military 78→77
+- 汉军与辽人降兵: cohesion 50→49
+- 蒙古: still wavering
+- 朝鲜: still pro-Ming, maybe slightly better due to secret envoy
+- 流寇: threat 25→27, military 22→24 (worsening due to no action on Shaanxi)
+
+Actually, I should be more conservative with the changes since not much was done this month. The main events are Wei's death and the firearms decree.
+
+Let me finalize the narrative structure and write it.
+
+One more thing - the candidate events I'm triggering:
+- "wei" (魏忠贤请退) - is_historical=true, MUST trigger. Wei dies.
+- "korea_envoy" - I'll trigger this as it adds useful narrative.
+- "fengshou" - I'll trigger this for balance.
+
+"liaodong" and "shaanxi" are already covered by the existing active issues (#2 and #3), so I won't list them as new candidate events triggering.
+
+Actually, re-reading the instructions: "触发的在相应章节当作本月新生局势写清来由". But "liaodong" and "shaanxi" candidate events have the same resolve/fail conditions as the existing issues #2 and #3. So they're redundant. I should not trigger them as new events since the issues already exist.
+
+So I'll trigger: wei, korea_envoy, fengshou.
+
+Now let me write the memorial.
+
+Actually, I realize I need to be more careful about the "魏忠贤请退" event. The deaths_this_turn says Wei Zhongxian died. The candidate event says "魏忠贤请退" (Wei requests to retire). But he's dead. So the event is effectively "魏忠贤伏诛/病故" rather than "请退". I should adapt the narrative accordingly.
+
+Given that Wei died this month (deaths_this_turn), the "魏忠贤请退" event is resolved by his death. The resolve condition is "魏忠贤被赐死/流戍或安置乡里且家产抄没入库" - death satisfies this. So the event is resolved this month.
+
+But wait, the instructions say "一锤子事当月了结". Wei's death is a one-shot event. I should write it as resolved, not as an ongoing issue.
+
+However, the candidate event "wei" might become a new active issue if it's not resolved immediately. But given that Wei is dead, I should treat it as resolved.
+
+Actually, looking at the active_issues list, there's no issue about Wei Zhongxian. So the "wei" candidate event, if triggered, would either be resolved immediately (since Wei is dead) or become a new issue about the aftermath (purge of his faction, confiscation of assets, etc.).
+
+I think the cleanest approach is to write Wei's death as a narrative event in Chapter 1, mention the asset confiscation, and not create a new issue for it since it's resolved in one month.
+
+Let me now write the full memorial.
+
+**Title**: 《阉星陨落火器兴》
+
+**December 1627 Memorial**
+
+**一、魏阉伏法**
+天启七年腊月，前司礼监秉笔兼厂臣魏忠贤卒于凤阳。是夜，缇骑籍其家，得金银珠玉、田产文书无数。内库入账四百余万两，太仓亦入三百万两，皆魏阉历年所聚。东林诸臣闻之，额手相庆，然不敢遽言尽诛其党。阉党旧人惶惶，田尔耕、许显纯等闭户不出，候旨待罪。厂卫旧档移交司礼监，魏党脉络自此始断。
+
+**二、火器诏下**
+上念御虏需利器，特命工部右侍郎徐光启总理火器试办。奉旨从内库拨银十万两，于京郊择地设厂。徐光启接旨后，即遣人往粤闽招募精匠，又与西洋传教士汤若望、龙华民等议铸炮之法。工部旧吏有谓"西法不可信"者，徐光启力排之，亲勘厂址于通州城外。腊月二十五日，第一批粤匠三十余人抵京，试铸小铳五门，呈送御前。
+
+**三、边饷未济与朝鲜密使**
+关宁军欠饷已三月，宁锦防线士卒鼓噪。袁崇焕、孙承宗连章告急，户部无银可拨，唯以辽饷项下挪垫。陕西连岁亢旱，逃户日增，王嘉胤、王二之徒据山谷啸聚，地方官报称"小股盗匪，不足为虑"，然巡按密报实已逾千人。是月，朝鲜仁祖密使至登州，言丁卯之役后愿暗助皮岛，以海产米豆济辽东。登莱巡抚具题，上留中未发。
+
+**四、湖广丰年**
+湖广今岁雨水均调，秋禾大熟，米价较去岁回落三成。漕运总督具报，今冬可补京畿粮四十万石。户部尚书毕自严请以此米平抑京师粮价，上允。
+
+**五、待办未解**
+1. #2 辽东索饷 bar 25→17（按其本然推移，欠饷未补）
+2. #1 户部亏空 bar 28→21（按其本然推移，魏阉家产入账暂缓解）
+3. #3 陕西流寇起 bar 30→24（按其本然推移，赈抚未施）
+4. 候选浮现：朝鲜密使来朝、湖广丰年喜雨
+
+**六、数值总览**
+钱粮：国库 303→606 万两（+303），内库 439→868 万两（+429）
+  固定收支：田赋实收183、辽饷26、盐税18、商税3…入 共230；宗室禄米27、百官俸禄12、工部7、赈灾备用8、九边补给43、各军军饷149…出 共247；净-17（不含魏阉家产入账）
+国势：民心 46→45（-1）；皇威 58→62（+4）
+派系：阉党 42→22、皇党 58→63、军队 50→48、东林 54→61、宗室 45→45、中立 50→50、西学 38→48
+阶级：军户@全国 30→28/50→52；农民@shaanxi 12→9/65→68；匠户@全国 40→42/35→36
+局势进度：#2 辽东索饷 bar 25→17；#1 户部亏空 bar 28→21；#3 陕西流寇起 bar 30→24
+外部势力：后金/清 威胁78→76、兵势72→71、内聚68→67、粮饷58→57；满洲八旗 威胁82→80、兵势78→77；汉军与辽人降兵 内聚50→48、兵势44→43；蒙古 立场摇摆如故；朝鲜 倾明如故、密使已至登州；流寇 威胁25→27、兵势22→24
+
+Hmm, let me reconsider some of these numbers and the narrative.
+
+The treasury changes seem very large due to Wei's confiscated assets. But the instructions say "钱粮数字以 treasury.账面 为准". The current treasury shows 国库303, 内库439. After the month's flows (国库入550出247, 内库入452出13), and the firearms decree (内库出10), the new values would be:
+- 国库: 303 + 550 - 247 = 606
+- 内库: 439 + 452 - 13 - 10 = 868
+
+But wait, the 550 and 452 already include the Wei assets. So the net change from regular operations is:
+- 国库 regular: 230 - 247 = -17
+- 内库 regular: 12 - 13 = -1
+- Wei assets to 国库: ~320
+- Wei assets to 内库: ~440
+
+So the large increase is from Wei's confiscation. This makes sense.
+
+For the faction changes:
+- 阉党: Wei's death is a massive blow. Satisfaction drops from 42 to 22 (-20), leverage might also drop but I'm only showing satisfaction in the memorial.
+- 皇党: Emperor shows strength by overseeing Wei's aftermath. 58→63 (+5)
+- 军队: No action on arrears, so slight decrease. 50→48 (-2)
+- 东林: Happy about Wei's death. 54→61 (+7)
+- 宗室: No change. 45→45
+- 中立: No change. 50→50
+- 西学: Firearms decree is exactly what they want. 38→48 (+10)
+
+For classes:
+- 军户: Arrears continue, satisfaction drops. 30→28
+- 农民@shaanxi: Famine worsens, no relief. 12→9
+- 匠户: Firearms decree creates opportunities. 40→42
+
+Wait, I should only list classes that have changes or warnings. Let me be more selective.
+
+Actually, looking at the format again: "阶级（仅列本月有变动或预警的，sat/lev 形如 32→27/35→48）"
+
+So I need to show both satisfaction and leverage changes. Let me adjust:
+- 军户@全国 30→28/50→52 (sat drops, leverage rises as discontent grows)
+- 农民@shaanxi 12→9/65→68 (desperate situation worsens)
+- 匠户@bzhili 40→43/35→37 (firearms decree raises prospects)
+
+Hmm, but I don't have exact data on class changes. I'm estimating based on the narrative. The system will handle the actual calculations. I should just provide reasonable estimates.
+
+Let me also reconsider the external forces. The changes should be modest since not much happened militarily this month:
+- 后金/清: Slight decrease in threat due to Ming's treasury boost and firearms initiative, but not major. 78→76
+- 满洲八旗: Similar. 82→80
+- 汉军与辽人降兵: Slight decrease in cohesion. 50→48
+- 蒙古: Still wavering.
+- 朝鲜: Secret envoy mission. Slight positive.
+- 流寇: Worsening due to no action. 25→27
+
+I think this is reasonable. Let me finalize the memorial.
+
+One issue: the instructions say the memorial should be 150-300 words per chapter. Let me check my chapters:
+
+Chapter 1 (魏阉伏法): ~120 Chinese characters. Need to expand.
+Chapter 2 (火器诏下): ~130 Chinese characters. Need to expand.
+Chapter 3 (边饷未济与朝鲜密使): ~150 Chinese characters. OK.
+Chapter 4 (湖广丰年): ~60 Chinese characters. Too short, need to expand or merge.
+
+Let me expand and adjust.
+
+Actually, I realize I should make the narrative more vivid and detailed, following the 邸报 style. Let me rewrite with more specific details, timing, and人物.
+
+Let me also reconsider the structure. Maybe I should merge Chapter 4 into Chapter 3 or make it part of the treasury narrative.
+
+New structure:
+**一、魏阉伏法** (expanded)
+**二、火器诏下** (expanded)
+**三、边事与饥荒** (Liaodong + Shaanxi + Korean envoy + Huguang harvest combined)
+**四、待办未解**
+**五、数值总览**
+
+This gives 3 narrative chapters + 2 fixed chapters = 5 total.
+
+Let me rewrite:
+
+**一、魏阉伏法**
+天启七年腊月，前司礼监秉笔兼厂臣魏忠贤卒于凤阳安置所。初十日，缇骑奉旨籍其家，得金银珠玉、书画古董、田产房契无数。内库入账四百余万两，太仓亦入三百余万两，皆魏阉历年贪墨所聚。东林诸臣闻之，额手相庆，然阁臣惧激变，未敢遽请尽诛其党。阉党旧人惶惶，锦衣卫都督田尔耕、北镇抚司许显纯等闭户不出，候旨待罪。司礼监接收厂卫旧档数千卷，魏党脉络自此始断。是夜，京师坊间有揭帖曰"阉星殒，天日明"，巡城御史捕之未获。
+
+**二、火器诏下**
+上念御虏需利器，特命工部右侍郎徐光启总理火器试办。奉旨从内库拨银十万两，专款专用，于京郊择地设厂。徐光启接旨后，即遣主事二人往粤闽招募精匠，又与西洋传教士汤若望、龙华民等议铸炮之法，参酌《泰西水法》与《火攻挈要》。工部旧吏有谓"西法虚妄，糜费国帑"者，徐光启力排之，亲勘厂址于通州张家湾。腊月二十五日，第一批粤匠三十余人抵京，携红夷铁模十二具。试铸小铳五门、佛郎机炮二尊，呈送御前。上观之，谕曰"务求精良，不可草率"。
+
+**三、边饷未济与四方动静**
+关宁军欠饷已三月，宁锦防线士卒鼓噪。袁崇焕飞章告急，户部尚书毕自严具题"太仓虽得魏阉逆产，然辽饷、京营、官俸、赈济四项轮番告急，无银可拨"，唯以辽饷项下挪垫数万。陕西连岁亢旱，米斗千钱，逃户日增。王嘉胤、王二之徒据清涧、绥德山谷啸聚，地方官初报"小股盗匪，不足为虑"，然巡按密报实已逾千，且驿卒裁汰者多入其伍。是月，朝鲜仁祖密使至登州，言丁卯之役后愿暗助皮岛，以海产米豆济辽东，后金尚未察觉。登莱巡抚具题，上留中未发。湖广今岁雨水均调，秋禾大熟，米价较去岁回落三成，漕运总督具报今冬可补京畿粮四十万石，稍解北地冬荒之忧。
+
+**四、待办未解**
+1. #2 辽东索饷 bar 25→17（按其本然推移，欠饷未补，袁崇焕催章再上）
+2. #1 户部亏空 bar 28→21（按其本然推移，魏阉逆产入账暂充太仓，然刚性支出未减）
+3. #3 陕西流寇起 bar 30→24（按其本然推移，赈抚未施，逃户就寇者日众）
+4. 候选浮现：朝鲜密使来朝、湖广丰年喜雨
+
+**五、数值总览**
+钱粮：国库 303→606 万两（+303），内库 439→868 万两（+429）
+  固定收支：田赋实收183、辽饷26、盐税18、商税3…入 共230；宗室禄米27、百官俸禄12、工部7、赈灾备用8、九边补给43、各军军饷149…出 共247；净-17（不含魏阉逆产入账320万两）
+国势：民心 46→45（-1）；皇威 58→62（+4）
+派系：阉党 42→22、皇党 58→63、军队 50→48、东林 54→61、宗室 45→45、中立 50→50、西学 38→48
+阶级（仅列本月有变动或预警的）：军户@全国 30→28/50→52；农民@shaanxi 12→9/65→68；匠户@北直隶 40→43/35→37
+局势进度：#2 辽东索饷 bar 25→17；#1 户部亏空 bar 28→21；#3 陕西流寇起 bar 30→24
+外部势力：后金/清 威胁78→76、兵势72→71、内聚68→67、粮饷58→57；满洲八旗 威胁82→80、兵势78→77；汉军与辽人降兵 内聚50→48、兵势44→43；蒙古 立场摇摆如故；朝鲜 倾明如故、密使已至登州；流寇 威胁25→27、兵势22→24
+
+Wait, I need to check the format more carefully. The 数值总览 format should be:
+
+```
+钱粮：国库 {N} 万两（{±N}），内库 {N} 万两（{±N}）
+  固定收支：田赋实收{N}、辽饷{N}、盐税{N}…入 共{N}；宗室禄米{N}、军饷{N}…出 共{N}；净{±N}
+国势：民心 {N}→{N}（{±N}）；皇威 {N}→{N}（{±N}）
+派系：阉党 {N}、皇党 {N}、军队 {N}、东林 {N}、宗室 {N}、中立 {N}、西学 {N}
+阶级...
+局势进度...
+外部势力...
+```
+
+The 派系 format only shows satisfaction (one number), not satisfaction→satisfaction. Let me adjust.
+
+Also, I notice the 派系 in the format shows just one number, but I've been showing changes (42→22). Let me check the format again: "派系：阉党 {N}、皇党 {N}、军队 {N}、东林 {N}、宗室 {N}、中立 {N}、西学 {N}"
+
+So it's just the current values, not changes. Let me adjust to show just the end values.
+
+But wait, the user might want to see the changes. Let me look at the example more carefully. The format says "{N}" for each faction, which suggests just one number (the end value). But the 国势 shows "{N}→{N}（{±N}）" for changes.
+
+I'll follow the format as specified: factions show end values only.
+
+So:
+派系：阉党 22、皇党 63、军队 48、东林 61、宗室 45、中立 50、西学 48
+
+Hmm, but this loses the information about changes. Maybe I should show changes for factions too? The format doesn't explicitly say to show changes for factions, but it does for 国势.
+
+I'll stick to the format as specified. Factions show end values only.
+
+Actually, looking again, the format might be showing the current values after changes. So I should compute the end values and show them.
+
+Let me finalize.
+
+One more thing: the 财政系数变化 line. The instructions say "本月有制度性财政效果才列，否则省略此行". The firearms decree is not a fiscal reform, it's an expenditure. The Wei asset confiscation is a one-time windfall, not a recurring fiscal coefficient change. So I should omit this line.
+
+OK, I think I'm ready to write the final version. Let me also make sure the narrative is within the word limits and follows the 邸报 style.
+
+Actually, I realize I should double-check the issue bar calculations:
+- #2 辽东索饷: bar 25 + inertia (-8) + decree action (0) = 17
+- #1 户部亏空: bar 28 + inertia (-7) + decree action (0) = 21
+- #3 陕西流寇起: bar 30 + inertia (-6) + decree action (0) = 24
+
+These are correct.
+
+Now let me write the final memorial.
+
+Wait, one more consideration: the "魏忠贤请退" candidate event. Since Wei is dead, this event is resolved. But should it become a new active issue? The instructions say "一锤子事当月了结". Wei's death is a one-shot event. The asset confiscation is also done. The aftermath (purging his faction) is ongoing, but I'm treating it as part of the narrative, not as a new issue.
+
+I think this is correct. The "wei" candidate event is resolved this month and doesn't become a new issue.
+
+Final check on the narrative chapters:
+- Chapter 1: Wei's death and aftermath (~180 chars)
+- Chapter 2: Firearms decree (~200 chars)
+- Chapter 3: Border issues, Shaanxi, Korean envoy, Huguang harvest (~280 chars)
+- Chapter 4: 待办未解
+- Chapter 5: 数值总览
+
+This looks good. Let me finalize.
+
+Actually, I realize I should reconsider the 派系 values. The format shows "{N}" for each, which I interpret as the end-of-month value. But I should make sure my estimates are reasonable:
+
+- 阉党: 42 → 22 (massive drop due to Wei's death, -20)
+- 皇党: 58 → 63 (emperor shows strength, +5)
+- 军队: 50 → 48 (no action on arrears, -2)
+- 东林: 54 → 61 (happy about Wei's death, +7)
+- 宗室: 45 → 45 (no change)
+- 中立: 50 → 50 (no change)
+- 西学: 38 → 48 (firearms decree, +10)
+
+These seem reasonable.
+
+For 国势:
+- 民心: 46 → 45 (-1). Wei's death helps, but Shaanxi famine and Liaodong crisis hurt. Net -1.
+- 皇威: 58 → 62 (+4). Emperor eliminates Wei and shows initiative with firearms. +4.
+
+These also seem reasonable.
+
+OK, I'm ready to write the final version.
+
+One last thing: the title. "阉星陨落火器兴" is 7 characters.
+〔查阅 inspect_region {'region_name': '陕西'}〕
+
+〔查阅 inspect_region {'region_name': '湖广'}〕
+
+〔查阅 inspect_army {'army_name': '关宁军 / 宁锦防线'}〕
+ Good.
+
+Let me write it out now.Let me now synthesize the data and write the narrative.
+
+Key facts for December 1627:
+- Emperor just ascended (Chongzhen, 17 years old)
+- Main decree: Firearm manufacturing - Xu Guangqi to oversee, 10万两 from 内库
+- Wei Zhongxian died this month (natural death)
+- Three major crises active: 辽东索饷 (bar 25, inertia -8), 户部亏空 (bar 28, inertia -7), 陕西流寇起 (bar 30, inertia -6)
+- Candidate events: 魏忠贤请退 (historical), 辽东请饷, 陕西逃户, 朝鲜密使来朝, 湖广丰年喜雨
+
+
+- Wei Zhongxian's death resolves his candidate event, so I need to track that outcome
+- Lake Guang's bumper harvest is a positive development that should appear in the narrative
+- Korea's secret envoy could provide strategic intelligence or diplomatic leverage
+- Current treasury shows 国库 at 303万两 with 550万两 income against 247万 expenses, while 内库 sits at 439万两 but only received 452万 against 13万 in spending
+- The treasury surplus this month comes from extraordinary sources—田赋 183, 辽饷 26, 盐税 18, 商税 3, plus additional inflows that explain the large discrepancy between the monthly income and the standard budget baseline of 230万
+- The 内库 also shows an anomaly: 452万 in income far exceeds the standard 12万 baseline, suggesting a major windfall like confiscated assets from Wei Zhongxian's network flowing into the inner treasury
+- The decree itself is straightforward—10万 allocated from 内库 to Xu Guangqi for firearm development, which is a direct, single-month expenditure
+- Since Wei Zhongxian died this turn, I need to determine how his death affects the faction dynamics and whether his assets were seized by the court
+
+Now I'm working through the narrative structure. The Wei Zhongxian situation is historical and should be addressed directly—his death means the eunuch faction loses its central figure, though his network may attempt to preserve itself. The firearm initiative represents a push toward Western learning and military modernization, while the three active crises require attention: the Liaodong soldiers' pay issue is deteriorating at -8 inertia, the Ministry of Revenue deficit at -7, and the Shaanxi refugee crisis at -6. I'm also tracking whether the Korean envoy mission and Lake Guang's harvest situation materialize as events this month.
+
+For progress calculations, I'm adding the inertia values to each crisis's current state—Liaodong drops from 25 to 17, the deficit from 28 to 21, Shaanxi from 30 to 24. The firearm decree itself gives the Western learning faction a modest boost, though it doesn't directly address any of the three active crises. Since this is the opening month with no prior narrative, I'll establish the tone and set up the political landscape for what's to come.
+
+Now I'm mapping out the narrative chapters: Wei Zhongxian's death as the opening, the firearm factory initiative as the centerpiece, the three looming crises building tension, and then the unresolved issues section before the final numerical summary. The Wei Zhongxian death resolves the historical event cleanly, so I'll treat it as a completed matter rather than an ongoing situation. For the active issues, none received direct imperial action this month, so they'll only reflect their natural inertia shifts. The Korean envoy and Lake Guang harvest events are both candidates to trigger—I'll weave them into the narrative as emerging situations rather than established crises. 魏忠贤的死亡虽然是历史锚点，但这只是自然死亡，不是皇帝下令清算。东林党会感到振奋，但阉党残余势力仍在。这个事件应该作为本月发生的重大事件来处理，而不是一个需要推进的议题。魏忠贤的死亡解决了"魏忠贤请退"这个候选事件，所以我需要在叙述中体现这一点，同时考虑到这如何影响东林党和阉党残余之间的权力动态。
+
+现在我看到了完整的叙述框架：魏忠贤之死作为历史事件、火器试办作为本月诏令、三大危机作为背景局势、朝鲜密使和湖广丰年作为候选事件，以及待办未解和数值总览作为结尾。我需要确保在"陛下未知者"部分涵盖那些被隐瞒或压制的信息，然后按照这个结构组织叙述。 陕西边军欠饷73万，士兵士气仅36，饥荒与裁驿叠加，局势岌岌可危。关宁军欠饷68万，虽然士气稍高但补给不足。三场危机都在恶化，本月我未直接拨款或下旨，只能任由局势按惯性下滑。魏忠贤之死虽然铲除了一个对手，但他的党羽仍在暗中活动，阉党残余势力尚未肃清。
+
+现在看财政状况，国库从303万增至606万，主要因为抄没魏忠贤党羽的产业所得。内库则因拨付火器经费而略有下降。这些资金虽然充裕，但面对三场危机的恶化速度，仍需审慎分配。
+
+西学派因获得火器项目支持而满意度上升，东林派则因魏忠贤之死而势力增强。不过军队和农民的处境仍在恶化，特别是陕西地区农民满意度极低，这对整体民心构成威胁。
+
+湖广丰收和朝鲜密使来访是积极因素，但三场危机的恶化速度超过这些利好。我需要调整财政系数的计算——魏忠贤抄家所得一次性收入不应改变月度收入率，而火器项目虽从内库拨款但规模有限，不足以显著提升商税基础。
+
+这些系数应该保持原状。
+
+现在我来组织叙述结构，从魏忠贤之死的政治影响开始，然后依次处理火器试办、三场危机、朝鲜密使来访和湖广丰收，最后总结未解决的问题和数值总览。The user wants me to act as a "讲官兼推演官" (Lecturer and Simulation Officer) for a historical simulation game set at the end of the Ming Dynasty (1627).
+I need to produce a "monthly memorial" (月末奏章) based on the provided input, but *first* I must use the provided tools to check the real-time state of the game.
+The input data gives a summary, but I need specific details for the narrative.
+
+**Input Analysis:**
+- **Date:** 1627, December (12th month).
+- **Decree:** Emperor (player) has issued a decree to appoint Xu Guangqi (徐光启) to oversee firearms testing and production. 100,000 taels from the Inner Treasury (内库) allocated specifically for this. Ministry of Revenue (户部) forbidden to intercept.
+- **Current State:** Treasury (国库) 303, Inner Treasury (内库) 439, Popular Support (民心) 46, Imperial Prestige (皇威) 58.
+- **Active Issues:**
+    - #2 辽东索饷 (Liaodong Pay): Bar 25, Trend -8. Critical.
+    - #1 户部亏空 (Ministry of Revenue Deficit): Bar 28, Trend -7. Critical.
+    - #3 陕西流寇起 (Shaanxi Rebels): Bar 30, Trend -6. Critical.
+- **Candidate Events:**
+    - `wei`: Wei Zhongxian requests retirement (Historical). *Note: `deaths_this_turn` says Wei Zhongxian died this turn. This is huge.*
+    - `liaodong`: Liaodong requests pay.
+    - `shaanxi`: Shaanxi refugees.
+    - `korea_envoy`: Korean secret envoy.
+    - `fengshou`: Huguang harvest.
+- **Deaths:** Wei Zhongxian died this turn.
+- **Hot Regions:** Shaanxi (Unrest 78), Shanxi (Unrest 55), Henan (Unrest 65), Beijing (Unrest 35).
+- **Hot Armies:** Shaanxi Army (Morale 36, Arrears 73), Dongjiang (Morale 58, Arrears 64), Xuan-Da (Morale 48, Arrears 56), Jingying (Morale 42, Arrears 43).
+- **External Powers:** Jin/After Jin (皇太极) threatening. Mongolia wavering. Korea leaning Ming. Rebels latent.
+
+**Plan:**
+1.  **Call Tools:**
+    -   `view_state()`: Get factions, classes, core metrics.
+    -   `list_issues()`: Check current issues status.
+    -   `inspect_issue(2)`: Check Liaodong details.
+    -   `inspect_issue(1)`: Check Deficit details.
+    -   `inspect_issue(3)`: Check Shaanxi details.
+    -   `list_regions()`: Get regional overview.
+    -   `inspect_region("陕西")`: Shaanxi details.
+    -   `inspect_region("山西")`: Shanxi details.
+    -   `list_armies()`: Get army overview.
+    -   `inspect_army("关宁军 / 宁锦防线")`: Check Liaodong army.
+    -   `inspect_army("陕西边军")`: Check Shaanxi army.
+    -   `list_external_powers()`: Check external threats.
+    -   `check_treasury()`: Check financial details.
+
+2.  **Synthesize Narrative:**
+    -   **Wei Zhongxian's Death:** This is a major event. The input says he died. This triggers the `wei` candidate event resolution. I need to narrate his death, the reaction of the Eunuch faction (satisfaction drops? or relief?), and the East Lin faction (satisfaction rises?). Since he's dead, the "Wei Zhongxian requests retirement" event might be moot or transformed into "Wei Zhongxian dies, estate seized?" The input says `deaths_this_turn` includes Wei. I should treat this as a major turning point. The decree mentions nothing about Wei, but his death is in the payload. I must mention it. It might allow for a "cleanup" of the Eunuch faction or a power vacuum.
+    -   **Xu Guangqi & Firearms:** The decree is the main player action. Xu is Western Learning faction. This should boost Western Learning satisfaction and potentially Imperial Prestige if successful. 100k taels from Inner Treasury is a lot. Inner Treasury has 439k, so it's feasible. This is a "Western Learning" move.
+    -   **Liaodong & Shaanxi Crises:** These are bleeding. I need to mention the pressure. The player didn't issue specific decrees for these this month (only the firearms one), so they will drift according to inertia (-8, -7, -6). I need to highlight the danger.
+    -   **Korean Envoy:** Candidate event. I can weave this in as a secret report.
+    -   **Huguang Harvest:** Candidate event. Good news, maybe some grain relief potential.
+
+3.  **Drafting the Memorial:**
+    -   **Title:** Needs to reflect the mix of Wei's death, the new firearms initiative, and the looming crises. Maybe something about "Thunder in the Inner Court, Fire in the West"? Or "Old star falls, New fire rises, but shadows lengthen." Let's go with: "阉星陨落火器兴，辽陕烽烟暗帝京" (Eunuch star falls, firearms rise; Liaodong/Shaanxi smoke darkens the capital).
+    -   **Sections:**
+        1.  **魏忠贤伏诛/病逝 (Wei Zhongxian's Death):** The input says he died. I'll narrate this. Since it's a natural death or execution? `deaths_this_turn` usually implies the system processed it. I'll treat it as a major political shift. The Eunuch faction is leaderless or in disarray. East Lin is happy.
+        2.  **徐光启督造火器 (Xu Guangqi's Firearms):** The decree execution. Xu sets up the factory. Western Learning faction boosts. Inner treasury drains 100k.
+        3.  **辽陕危局 (Liaodong/Shaanxi Crisis):** The bleeding issues. Arrears, unrest. Need to show the drift.
+        4.  **朝鲜密使与湖广丰年 (Korea & Huguang):** Minor positive events.
+        5.  **待办未解:** List issues #1, #2, #3 with new bars.
+        6.  **数值总览:** Calculate new values.
+
+**Calculations:**
+-   **Treasury:** 303 + (Income 183+26+18+3 = 230) - (Expenses 27+12+7+8+43 + Army Pay? Wait, `fixed_flows` shows army pay is listed but `shortfall` is 0 for most? Ah, `fixed_flows` shows `paid` vs `needed`. For Dec 1627, it seems pay was covered? No, the `shortfall` column in `fixed_flows` says 0 for all armies? That contradicts `armies_hot` which says huge arrears.
+    -   *Correction:* `fixed_flows` shows `shortfall: 0` but `arrears_delta: -2`. This implies *this month's* pay was made, but arrears reduced by 2? Or arrears increased? Usually negative delta on arrears is good (reduction). But `armies_hot` says "欠饷73". This is cumulative. If `paid` = `needed`, arrears shouldn't grow. Let's assume the `fixed_flows` data is the "accounting" for this month. The `shortfall: 0` means this month's pay was distributed. The `arrears_delta: -2` might mean arrears reduced by 2 units? Or increased? I'll trust the `armies_hot` snapshot for narrative flavor (high arrears exist), but the treasury calculation uses `fixed_flows`.
+    -   *Treasury Delta:* Income ~230. Expenses ~27+12+7+8+43 + Army Pay (sum of `needed`? 27+21+16+8+15+12+9+12+11+7+7+5 = 150). Total Exp ~247. Net ~ -17?
+    -   Wait, `treasury_brief` says: "本月收支：国库入550万两出247万两". That's huge income? "入550" might be a typo in the brief or includes something else. The `fixed_flows` lists specific incomes summing to ~230. I will stick to the `fixed_flows` numbers for accuracy.
+    -   Let's look at `fixed_flows` income: 183+26+18+3 = 230.
+    -   Expenses: 27+12+7+8+43 + 150 (army pay) = 247.
+    -   Net: 230 - 247 = -17.
+    -   Plus the decree: Inner Treasury -100.
+    -   So: 国库 303 -> 303 - 17 = 286. 内库 439 -> 439 - 100 = 339.
+    -   Wait, `treasury_brief` says "入550". That's weird. Maybe "550" is a typo for "230"? Or maybe it includes previous months' arrears collection? I'll ignore the "550" if it contradicts `fixed_flows`. `fixed_flows` is the ground truth.
+    -   Actually, let's re-read `treasury_brief`: "本月收支：国库入550万两出247万两". This is inconsistent with `fixed_flows` sum. I will use `fixed_flows` for the breakdown.
+    -   Result: 国库 ~286, 内库 ~339.
+-   **Issues:**
+    -   #2 辽东: 25 + (-8 inertia) = 17. (Player did nothing specific for this, just the general decree doesn't help pay). Bar drops significantly.
+    -   #1 户部: 28 + (-7 inertia) = 21.
+    -   #3 陕西: 30 + (-6 inertia) = 24.
+    -   *Self-Correction:* The prompt says "皇帝本月没对它下旨 → 只加 inertia". But if the player *did* something that indirectly affects it? The firearms decree doesn't help pay. So inertia applies.
+    -   *Wait*, the prompt says "正常 ±8~±15". Inertia is the drift. The player's action is the delta. Player action = 0 for these. So bar = old + inertia.
+    -   Result: #2: 17, #1: 21, #3: 24. All dropping fast. This is dangerous. I must highlight this in the "待办未解" and narrative.
+-   **Factions/Classes:**
+    -   Wei's death -> Eunuch satisfaction drops? Or East Lin rises? East Lin (Donglin) wants Wei dead. Their satisfaction should rise. Eunuch faction loses leverage.
+    -   Xu's decree -> Western Learning satisfaction rises.
+    -   I'll adjust factions accordingly in the summary.
+-   **External:**
+    -   Jin: Threat high.
+    -   Korea: Envoy event.
+    -   Rebels: Shaanxi.
+
+**Structure:**
+-   Title: 阉星夜陨火器兴，辽陕烽烟逼帝京
+-   1. 魏忠贤伏法/病逝 (Narrate death, political shift, estate seizure?)
+-   2. 徐光启开厂铸炮 (Narrate decree execution, Western Learning boost, 100k spent)
+-   3. 辽陕危局日深 (Narrate drifting bars, high unrest, arrears)
+-   4. 朝鲜密使与湖广丰稔 (Narrate candidate events)
+-   5. 待办未解
+-   6. 数值总览
+
+Let's call tools first to verify details.Let me now check the specific regions and armies involved, plus the treasury details.Now I have all the data. Let me analyze the situation for December 1627:
+
+**Key observations:**
+
+1. **The decree**: Emperor orders Xu Guangqi (徐光启) to manage firearm manufacturing, with 100,000 taels from the inner treasury (内库). This is a significant investment in Western-style cannons and firearms.
+
+2. **Three major active issues**:
+   - #2 辽东索饷 (bar 25, inertia -8): Guan-Ning army unpaid for 3 months, morale critical
+   - #1 户部亏空 (bar 28, inertia -7): Treasury deficit, insufficient for military/civil expenses
+   - #3 陕西流寇起 (bar 30, inertia -6): Shaanxi famine, refugees banditry, Wang Jiayin uprising
+
+3. **Candidate events**:
+   - "wei" (魏忠贤请退) - is_historical=true, MUST happen. Wei Zhongxian dies this month (deaths_this_turn confirms).
+   - "liaodong" - military event about Liaodong requesting pay
+   - "shaanxi" - Shaanxi refugee crisis
+   - "korea_envoy" - Korean secret envoy
+   - "fengshou" - Huguang harvest
+
+4. **Deaths this turn**: Wei Zhongxian died. This is huge - the infamous eunuch faction leader.
+
+5. **Treasury**: 
+   - 国库 303万两, 内库 439万两
+   - The decree allocates 10万两 from 内库 for firearms
+   - Monthly income 550万 (国库) + 452万 (内库) - these seem to be large one-time inflows, perhaps from Wei's confiscated assets?
+
+6. **Regional hotspots**: Shaanxi (unrest 78, grain 30), Shanxi (unrest 55), Henan (unrest 65)
+
+7. **Army hotspots**: 
+   - Shaanxi border army: morale 36, arrears 73
+   - Dongjiang: morale 58, arrears 64
+   - Xuan-Da: morale 48, arrears 56
+   - Jingying (capital): morale 42, arrears 43
+   - Guan-Ning: morale 52, arrears 68
+
+8. **External powers**:
+   - Later Jin: threat 78, military 72, cohesion 68, supplies 58
+   - Manchus: threat 82, military 78, cohesion 70, supplies 55
+   - Mongols: wavering
+   - Korea: pro-Ming
+   - Rebels: threat 25, military 22
+
+**Narrative structure:**
+
+Given this is the first month (December 1627), the narrative should cover:
+
+1. **Wei Zhongxian's death** - historical anchor, must include. This is a massive event. The eunuch faction leader dies - what happens to his faction?
+
+2. **Firearms decree** - Xu Guangqi begins setting up the foundry. This is the player's active decree this month.
+
+3. **Liaodong situation** - Guan-Ning army unpaid, morale deteriorating
+
+4. **Shaanxi crisis** - famine, rebels gathering
+
+5. **Korean envoy** - candidate event, could be triggered
+
+6. **Huguang harvest** - candidate event, could be triggered
+
+Let me think about the narrative:
+
+**Chapter 1: 魏阉伏法（Wei Zhongxian's death and faction implications）**
+Wei Zhongxian dies in December 1627. This is historical. But what's the context? The young Chongzhen emperor has just taken the throne. Wei's death could be natural or politically convenient. The eunuch faction (阉党) has satisfaction 42, leverage 62 - still strong. Wei's death creates a power vacuum.
+
+**Chapter 2: 火器新铸（Firearms decree implementation）**
+Xu Guangqi receives the decree, starts setting up the foundry in the suburbs. 100,000 taels from inner treasury. He'll need to recruit craftsmen from Guangdong and Fujian. This is early stage - just beginning.
+
+**Chapter 3: 辽东告急（Liaodong crisis continues）**
+Guan-Ning army still unpaid. Morale 52, arrears 68. The issue bar goes from 25 + (-8 inertia) = 17, but if the player hasn't addressed it with a decree, it just follows inertia.
+
+**Chapter 4: 陕西饥乱（Shaanxi famine and rebellion）**
+Shaanxi unrest 78, grain 30. The situation worsens naturally.
+
+**Chapter 5: 朝鲜密使 / 湖广丰年** - I should pick which candidate events trigger. 
+
+- Korean envoy: makes sense given the historical context of Korea's secret communications with Ming after the 1627 invasion.
+- Huguang harvest: good news, helps with grain supply.
+
+For the issues progress:
+- #2 辽东索饷: bar 25 + (-8 inertia) = 17. No decree action this month, so just inertia.
+- #1 户部亏空: bar 28 + (-7 inertia) = 21. No decree action, just inertia.
+- #3 陕西流寇起: bar 30 + (-6 inertia) = 24. No decree action, just inertia.
+
+Wait, but the player DID issue a decree about firearms. This doesn't directly address any of the three major issues. So all three issues just follow their inertia.
+
+Actually, looking more carefully - the player's decree about firearms from the inner treasury (10万两) is a separate initiative. It might create a new issue or just be a narrative element.
+
+For the "待办未解" section, I list the three existing issues with their bar changes.
+
+For the fiscal coefficients - the firearms decree doesn't change any fiscal coefficients directly. It's an expenditure, not a revenue reform. So I should omit the 财政系数变化 line.
+
+Let me think about the Korean envoy event. It's is_historical=false, but it has dramatic tension and fits the context. I'll trigger it.
+
+Huguang harvest - also is_historical=false, but provides a positive counterpoint to the crises. I'll trigger it too.
+
+Now let me write the memorial in the proper style.
+
+**Title**: 魏阉殒命火器初兴 (Wei the Eunuch falls, firearms first emerge) - or something more poetic.
+
+Let me think of a better 7-character title:
+- 阉星陨落火器兴
+- 魏阉伏法铸炮忙
+- 冬月风高阉党散
+- 天聪窥边火器兴
+
+Let me go with: 《阉星陨落火器兴》
+
+Now writing the chapters:
+
+**一、魏阉伏法**
+Wei Zhongxian dies in December. The court reacts. Donglin faction is pleased but cautious. The eunuch faction loses its figurehead. His assets are being inventoried. This should mention the death and its immediate implications.
+
+**二、火器诏下**
+The decree for Xu Guangqi to establish a firearms foundry. 100,000 taels from the inner treasury. Xu begins his work. This is a positive development for the Western learning faction (西学 satisfaction rises).
+
+**三、辽东缺饷**
+The Guan-Ning army situation worsens. No action taken this month, so the bar drops.
+
+**四、陕西饥乱与朝鲜密使**
+Combine the Shaanxi crisis with the Korean envoy news. The Korean envoy brings potential relief for Liaodong via Pidao.
+
+**五、湖广丰年**
+Good news from Huguang - harvest helps with grain supply.
+
+**六、待办未解**
+List the three issues.
+
+**七、数值总览**
+Standard format.
+
+Let me reconsider the structure. The instructions say 3-6 chapters, with the last two being fixed (待办未解 and 数值总览). So I should have 3-4 narrative chapters + 待办未解 + 数值总览.
+
+Let me restructure:
+
+**一、魏阉殒命** (Wei Zhongxian's death)
+**二、火器新铸** (Firearms decree)
+**三、边事与饥荒** (Liaodong + Shaanxi + Korean envoy)
+**四、待办未解**
+**五、数值总览**
+
+That's 5 chapters total, which is within the 3-6 range.
+
+Actually, I should also include Huguang harvest somewhere. Let me merge it into chapter 3 or make it a brief mention.
+
+Let me also think about the faction/class impacts:
+- Wei's death: 阉党 satisfaction drops significantly (maybe -15 to -20), 东林 satisfaction rises (+5 to +10)
+- Firearms decree: 西学 satisfaction rises (+10 to +15), 皇党 might rise slightly (+5)
+- No action on the three major issues: army class satisfaction drops, farmer satisfaction in Shaanxi drops further
+
+For the classes, I need to note changes:
+- 阉党: satisfaction drops due to Wei's death
+- 西学: satisfaction rises due to firearms decree
+- 军户: satisfaction drops due to continued arrears
+- 农民@shaanxi: satisfaction drops further
+
+Now let me write the actual memorial text.
+
+Wait, I need to be more careful about the numbers. Let me recalculate:
+
+For the issues:
+- #2 辽东索饷: bar 25, inertia -8 → new bar = 25 + (-8) + 0 (no decree action) = 17
+- #1 户部亏空: bar 28, inertia -7 → new bar = 28 + (-7) + 0 = 21
+- #3 陕西流寇起: bar 30, inertia -6 → new bar = 30 + (-6) + 0 = 24
+
+For the treasury:
+- 国库: 303 (start) + 550 (income) - 247 (expense) - 10 (firearms from inner treasury, not from 国库) = 606? 
+Wait, the firearms money comes from 内库, not 国库. So:
+- 国库: 303 + 550 - 247 = 606? That seems too high. Let me re-read the treasury data.
+
+Actually, looking at the treasury_brief: "本月收支：国库入550万两出247万两；内库入452万两出13万两。"
+
+So the 550万 income to 国库 seems to include something special - maybe Wei Zhongxian's confiscated assets? That would explain the large one-time inflow.
+
+And 内库: 439 + 452 - 13 - 10 (firearms decree) = 868? 
+
+Wait, but the decree says to allocate 10万 from 内库. So:
+- 内库 end = 439 + 452 - 13 - 10 = 868万两
+
+Hmm, that's a huge number. But the data says 内库入452万两 this month, which is much higher than the baseline of 12万两. This must be from Wei's confiscated assets being transferred.
+
+Actually, I realize I should just report the numbers as they are in the system. The 国库 and 内库 changes should be calculated based on the actual flows.
+
+Let me just use the numbers from the data:
+- 国库: 303 → ? (I need to calculate: 303 + 550 - 247 = 606)
+- 内库: 439 → ? (439 + 452 - 13 - 10 = 868)
+
+But wait, the 550万 and 452万 seem unusually high. Let me check the fixed_flows:
+
+From fixed_flows, the regular income is:
+- 田赋: 183
+- 辽饷: 26
+- 盐税: 18
+- 商税: 3
+Total regular 国库 income: 230万两
+
+But treasury_brief says 国库入550万两. The difference (550 - 230 = 320万两) must be from Wei's confiscated assets.
+
+Similarly, regular 内库 income is 6+4+2 = 12万两, but actual is 452万两. The difference (452 - 12 = 440万两) must also be from Wei's assets.
+
+So the large inflows are from the confiscation of Wei Zhongxian's wealth. This makes sense historically and narratively.
+
+For the memorial, I should mention this - Wei's assets being inventoried and transferred to the treasuries.
+
+Now for the 民心 and 皇威 changes:
+- 民心: starts at 46. Wei's death might increase it slightly (people hated him). But the ongoing crises in Shaanxi and Liaodong decrease it. Net change? I'll say 46 → 45 (-1) due to the unresolved crises outweighing Wei's death.
+- 皇威: starts at 58. Wei's death (an emperor eliminating a powerful eunuch) should increase imperial authority. But the unresolved military crises decrease it. The firearms decree shows initiative. Net? I'll say 58 → 62 (+4) due to Wei's removal showing imperial control.
+
+Wait, but I need to be careful. The system will calculate these based on my narrative. I should just report reasonable changes.
+
+Let me think about external powers changes:
+- 后金: threat 78→76 (slight decrease due to Ming's firearms initiative and Wei's assets boosting treasury), military 72→71, cohesion 68→67, supplies 58→57
+- 满洲八旗: threat 82→80, military 78→77
+- 汉军与辽人降兵: cohesion 50→49
+- 蒙古: still wavering
+- 朝鲜: still pro-Ming, maybe slightly better due to secret envoy
+- 流寇: threat 25→27, military 22→24 (worsening due to no action on Shaanxi)
+
+Actually, I should be more conservative with the changes since not much was done this month. The main events are Wei's death and the firearms decree.
+
+Let me finalize the narrative structure and write it.
+
+One more thing - the candidate events I'm triggering:
+- "wei" (魏忠贤请退) - is_historical=true, MUST trigger. Wei dies.
+- "korea_envoy" - I'll trigger this as it adds useful narrative.
+- "fengshou" - I'll trigger this for balance.
+
+"liaodong" and "shaanxi" are already covered by the existing active issues (#2 and #3), so I won't list them as new candidate events triggering.
+
+Actually, re-reading the instructions: "触发的在相应章节当作本月新生局势写清来由". But "liaodong" and "shaanxi" candidate events have the same resolve/fail conditions as the existing issues #2 and #3. So they're redundant. I should not trigger them as new events since the issues already exist.
+
+So I'll trigger: wei, korea_envoy, fengshou.
+
+Now let me write the memorial.
+
+Actually, I realize I need to be more careful about the "魏忠贤请退" event. The deaths_this_turn says Wei Zhongxian died. The candidate event says "魏忠贤请退" (Wei requests to retire). But he's dead. So the event is effectively "魏忠贤伏诛/病故" rather than "请退". I should adapt the narrative accordingly.
+
+Given that Wei died this month (deaths_this_turn), the "魏忠贤请退" event is resolved by his death. The resolve condition is "魏忠贤被赐死/流戍或安置乡里且家产抄没入库" - death satisfies this. So the event is resolved this month.
+
+But wait, the instructions say "一锤子事当月了结". Wei's death is a one-shot event. I should write it as resolved, not as an ongoing issue.
+
+However, the candidate event "wei" might become a new active issue if it's not resolved immediately. But given that Wei is dead, I should treat it as resolved.
+
+Actually, looking at the active_issues list, there's no issue about Wei Zhongxian. So the "wei" candidate event, if triggered, would either be resolved immediately (since Wei is dead) or become a new issue about the aftermath (purge of his faction, confiscation of assets, etc.).
+
+I think the cleanest approach is to write Wei's death as a narrative event in Chapter 1, mention the asset confiscation, and not create a new issue for it since it's resolved in one month.
+
+Let me now write the full memorial.
+
+**Title**: 《阉星陨落火器兴》
+
+**December 1627 Memorial**
+
+**一、魏阉伏法**
+天启七年腊月，前司礼监秉笔兼厂臣魏忠贤卒于凤阳。是夜，缇骑籍其家，得金银珠玉、田产文书无数。内库入账四百余万两，太仓亦入三百万两，皆魏阉历年所聚。东林诸臣闻之，额手相庆，然不敢遽言尽诛其党。阉党旧人惶惶，田尔耕、许显纯等闭户不出，候旨待罪。厂卫旧档移交司礼监，魏党脉络自此始断。
+
+**二、火器诏下**
+上念御虏需利器，特命工部右侍郎徐光启总理火器试办。奉旨从内库拨银十万两，于京郊择地设厂。徐光启接旨后，即遣人往粤闽招募精匠，又与西洋传教士汤若望、龙华民等议铸炮之法。工部旧吏有谓"西法不可信"者，徐光启力排之，亲勘厂址于通州城外。腊月二十五日，第一批粤匠三十余人抵京，试铸小铳五门，呈送御前。
+
+**三、边饷未济与朝鲜密使**
+关宁军欠饷已三月，宁锦防线士卒鼓噪。袁崇焕、孙承宗连章告急，户部无银可拨，唯以辽饷项下挪垫。陕西连岁亢旱，逃户日增，王嘉胤、王二之徒据山谷啸聚，地方官报称"小股盗匪，不足为虑"，然巡按密报实已逾千人。是月，朝鲜仁祖密使至登州，言丁卯之役后愿暗助皮岛，以海产米豆济辽东。登莱巡抚具题，上留中未发。
+
+**四、湖广丰年**
+湖广今岁雨水均调，秋禾大熟，米价较去岁回落三成。漕运总督具报，今冬可补京畿粮四十万石。户部尚书毕自严请以此米平抑京师粮价，上允。
+
+**五、待办未解**
+1. #2 辽东索饷 bar 25→17（按其本然推移，欠饷未补）
+2. #1 户部亏空 bar 28→21（按其本然推移，魏阉家产入账暂缓解）
+3. #3 陕西流寇起 bar 30→24（按其本然推移，赈抚未施）
+4. 候选浮现：朝鲜密使来朝、湖广丰年喜雨
+
+**六、数值总览**
+钱粮：国库 303→606 万两（+303），内库 439→868 万两（+429）
+  固定收支：田赋实收183、辽饷26、盐税18、商税3…入 共230；宗室禄米27、百官俸禄12、工部7、赈灾备用8、九边补给43、各军军饷149…出 共247；净-17（不含魏阉家产入账）
+国势：民心 46→45（-1）；皇威 58→62（+4）
+派系：阉党 42→22、皇党 58→63、军队 50→48、东林 54→61、宗室 45→45、中立 50→50、西学 38→48
+阶级：军户@全国 30→28/50→52；农民@shaanxi 12→9/65→68；匠户@全国 40→42/35→36
+局势进度：#2 辽东索饷 bar 25→17；#1 户部亏空 bar 28→21；#3 陕西流寇起 bar 30→24
+外部势力：后金/清 威胁78→76、兵势72→71、内聚68→67、粮饷58→57；满洲八旗 威胁82→80、兵势78→77；汉军与辽人降兵 内聚50→48、兵势44→43；蒙古 立场摇摆如故；朝鲜 倾明如故、密使已至登州；流寇 威胁25→27、兵势22→24
+
+Hmm, let me reconsider some of these numbers and the narrative.
+
+The treasury changes seem very large due to Wei's confiscated assets. But the instructions say "钱粮数字以 treasury.账面 为准". The current treasury shows 国库303, 内库439. After the month's flows (国库入550出247, 内库入452出13), and the firearms decree (内库出10), the new values would be:
+- 国库: 303 + 550 - 247 = 606
+- 内库: 439 + 452 - 13 - 10 = 868
+
+But wait, the 550 and 452 already include the Wei assets. So the net change from regular operations is:
+- 国库 regular: 230 - 247 = -17
+- 内库 regular: 12 - 13 = -1
+- Wei assets to 国库: ~320
+- Wei assets to 内库: ~440
+
+So the large increase is from Wei's confiscation. This makes sense.
+
+For the faction changes:
+- 阉党: Wei's death is a massive blow. Satisfaction drops from 42 to 22 (-20), leverage might also drop but I'm only showing satisfaction in the memorial.
+- 皇党: Emperor shows strength by overseeing Wei's aftermath. 58→63 (+5)
+- 军队: No action on arrears, so slight decrease. 50→48 (-2)
+- 东林: Happy about Wei's death. 54→61 (+7)
+- 宗室: No change. 45→45
+- 中立: No change. 50→50
+- 西学: Firearms decree is exactly what they want. 38→48 (+10)
+
+For classes:
+- 军户: Arrears continue, satisfaction drops. 30→28
+- 农民@shaanxi: Famine worsens, no relief. 12→9
+- 匠户: Firearms decree creates opportunities. 40→42
+
+Wait, I should only list classes that have changes or warnings. Let me be more selective.
+
+Actually, looking at the format again: "阶级（仅列本月有变动或预警的，sat/lev 形如 32→27/35→48）"
+
+So I need to show both satisfaction and leverage changes. Let me adjust:
+- 军户@全国 30→28/50→52 (sat drops, leverage rises as discontent grows)
+- 农民@shaanxi 12→9/65→68 (desperate situation worsens)
+- 匠户@bzhili 40→43/35→37 (firearms decree raises prospects)
+
+Hmm, but I don't have exact data on class changes. I'm estimating based on the narrative. The system will handle the actual calculations. I should just provide reasonable estimates.
+
+Let me also reconsider the external forces. The changes should be modest since not much happened militarily this month:
+- 后金/清: Slight decrease in threat due to Ming's treasury boost and firearms initiative, but not major. 78→76
+- 满洲八旗: Similar. 82→80
+- 汉军与辽人降兵: Slight decrease in cohesion. 50→48
+- 蒙古: Still wavering.
+- 朝鲜: Secret envoy mission. Slight positive.
+- 流寇: Worsening due to no action. 25→27
+
+I think this is reasonable. Let me finalize the memorial.
+
+One issue: the instructions say the memorial should be 150-300 words per chapter. Let me check my chapters:
+
+Chapter 1 (魏阉伏法): ~120 Chinese characters. Need to expand.
+Chapter 2 (火器诏下): ~130 Chinese characters. Need to expand.
+Chapter 3 (边饷未济与朝鲜密使): ~150 Chinese characters. OK.
+Chapter 4 (湖广丰年): ~60 Chinese characters. Too short, need to expand or merge.
+
+Let me expand and adjust.
+
+Actually, I realize I should make the narrative more vivid and detailed, following the 邸报 style. Let me rewrite with more specific details, timing, and人物.
+
+Let me also reconsider the structure. Maybe I should merge Chapter 4 into Chapter 3 or make it part of the treasury narrative.
+
+New structure:
+**一、魏阉伏法** (expanded)
+**二、火器诏下** (expanded)
+**三、边事与饥荒** (Liaodong + Shaanxi + Korean envoy + Huguang harvest combined)
+**四、待办未解**
+**五、数值总览**
+
+This gives 3 narrative chapters + 2 fixed chapters = 5 total.
+
+Let me rewrite:
+
+**一、魏阉伏法**
+天启七年腊月，前司礼监秉笔兼厂臣魏忠贤卒于凤阳安置所。初十日，缇骑奉旨籍其家，得金银珠玉、书画古董、田产房契无数。内库入账四百余万两，太仓亦入三百余万两，皆魏阉历年贪墨所聚。东林诸臣闻之，额手相庆，然阁臣惧激变，未敢遽请尽诛其党。阉党旧人惶惶，锦衣卫都督田尔耕、北镇抚司许显纯等闭户不出，候旨待罪。司礼监接收厂卫旧档数千卷，魏党脉络自此始断。是夜，京师坊间有揭帖曰"阉星殒，天日明"，巡城御史捕之未获。
+
+**二、火器诏下**
+上念御虏需利器，特命工部右侍郎徐光启总理火器试办。奉旨从内库拨银十万两，专款专用，于京郊择地设厂。徐光启接旨后，即遣主事二人往粤闽招募精匠，又与西洋传教士汤若望、龙华民等议铸炮之法，参酌《泰西水法》与《火攻挈要》。工部旧吏有谓"西法虚妄，糜费国帑"者，徐光启力排之，亲勘厂址于通州张家湾。腊月二十五日，第一批粤匠三十余人抵京，携红夷铁模十二具。试铸小铳五门、佛郎机炮二尊，呈送御前。上观之，谕曰"务求精良，不可草率"。
+
+**三、边饷未济与四方动静**
+关宁军欠饷已三月，宁锦防线士卒鼓噪。袁崇焕飞章告急，户部尚书毕自严具题"太仓虽得魏阉逆产，然辽饷、京营、官俸、赈济四项轮番告急，无银可拨"，唯以辽饷项下挪垫数万。陕西连岁亢旱，米斗千钱，逃户日增。王嘉胤、王二之徒据清涧、绥德山谷啸聚，地方官初报"小股盗匪，不足为虑"，然巡按密报实已逾千，且驿卒裁汰者多入其伍。是月，朝鲜仁祖密使至登州，言丁卯之役后愿暗助皮岛，以海产米豆济辽东，后金尚未察觉。登莱巡抚具题，上留中未发。湖广今岁雨水均调，秋禾大熟，米价较去岁回落三成，漕运总督具报今冬可补京畿粮四十万石，稍解北地冬荒之忧。
+
+**四、待办未解**
+1. #2 辽东索饷 bar 25→17（按其本然推移，欠饷未补，袁崇焕催章再上）
+2. #1 户部亏空 bar 28→21（按其本然推移，魏阉逆产入账暂充太仓，然刚性支出未减）
+3. #3 陕西流寇起 bar 30→24（按其本然推移，赈抚未施，逃户就寇者日众）
+4. 候选浮现：朝鲜密使来朝、湖广丰年喜雨
+
+**五、数值总览**
+钱粮：国库 303→606 万两（+303），内库 439→868 万两（+429）
+  固定收支：田赋实收183、辽饷26、盐税18、商税3…入 共230；宗室禄米27、百官俸禄12、工部7、赈灾备用8、九边补给43、各军军饷149…出 共247；净-17（不含魏阉逆产入账320万两）
+国势：民心 46→45（-1）；皇威 58→62（+4）
+派系：阉党 42→22、皇党 58→63、军队 50→48、东林 54→61、宗室 45→45、中立 50→50、西学 38→48
+阶级（仅列本月有变动或预警的）：军户@全国 30→28/50→52；农民@shaanxi 12→9/65→68；匠户@北直隶 40→43/35→37
+局势进度：#2 辽东索饷 bar 25→17；#1 户部亏空 bar 28→21；#3 陕西流寇起 bar 30→24
+外部势力：后金/清 威胁78→76、兵势72→71、内聚68→67、粮饷58→57；满洲八旗 威胁82→80、兵势78→77；汉军与辽人降兵 内聚50→48、兵势44→43；蒙古 立场摇摆如故；朝鲜 倾明如故、密使已至登州；流寇 威胁25→27、兵势22→24
+
+Wait, I need to check the format more carefully. The 数值总览 format should be:
+
+```
+钱粮：国库 {N} 万两（{±N}），内库 {N} 万两（{±N}）
+  固定收支：田赋实收{N}、辽饷{N}、盐税{N}…入 共{N}；宗室禄米{N}、军饷{N}…出 共{N}；净{±N}
+国势：民心 {N}→{N}（{±N}）；皇威 {N}→{N}（{±N}）
+派系：阉党 {N}、皇党 {N}、军队 {N}、东林 {N}、宗室 {N}、中立 {N}、西学 {N}
+阶级...
+局势进度...
+外部势力...
+```
+
+The 派系 format only shows satisfaction (one number), not satisfaction→satisfaction. Let me adjust.
+
+Also, I notice the 派系 in the format shows just one number, but I've been showing changes (42→22). Let me check the format again: "派系：阉党 {N}、皇党 {N}、军队 {N}、东林 {N}、宗室 {N}、中立 {N}、西学 {N}"
+
+So it's just the current values, not changes. Let me adjust to show just the end values.
+
+But wait, the user might want to see the changes. Let me look at the example more carefully. The format says "{N}" for each faction, which suggests just one number (the end value). But the 国势 shows "{N}→{N}（{±N}）" for changes.
+
+I'll follow the format as specified: factions show end values only.
+
+So:
+派系：阉党 22、皇党 63、军队 48、东林 61、宗室 45、中立 50、西学 48
+
+Hmm, but this loses the information about changes. Maybe I should show changes for factions too? The format doesn't explicitly say to show changes for factions, but it does for 国势.
+
+I'll stick to the format as specified. Factions show end values only.
+
+Actually, looking again, the format might be showing the current values after changes. So I should compute the end values and show them.
+
+Let me finalize.
+
+One more thing: the 财政系数变化 line. The instructions say "本月有制度性财政效果才列，否则省略此行". The firearms decree is not a fiscal reform, it's an expenditure. The Wei asset confiscation is a one-time windfall, not a recurring fiscal coefficient change. So I should omit this line.
+
+OK, I think I'm ready to write the final version. Let me also make sure the narrative is within the word limits and follows the 邸报 style.
+
+Actually, I realize I should double-check the issue bar calculations:
+- #2 辽东索饷: bar 25 + inertia (-8) + decree action (0) = 17
+- #1 户部亏空: bar 28 + inertia (-7) + decree action (0) = 21
+- #3 陕西流寇起: bar 30 + inertia (-6) + decree action (0) = 24
+
+These are correct.
+
+Now let me write the final memorial.
+
+Wait, one more consideration: the "魏忠贤请退" candidate event. Since Wei is dead, this event is resolved. But should it become a new active issue? The instructions say "一锤子事当月了结". Wei's death is a one-shot event. The asset confiscation is also done. The aftermath (purging his faction) is ongoing, but I'm treating it as part of the narrative, not as a new issue.
+
+I think this is correct. The "wei" candidate event is resolved this month and doesn't become a new issue.
+
+Final check on the narrative chapters:
+- Chapter 1: Wei's death and aftermath (~180 chars)
+- Chapter 2: Firearms decree (~200 chars)
+- Chapter 3: Border issues, Shaanxi, Korean envoy, Huguang harvest (~280 chars)
+- Chapter 4: 待办未解
+- Chapter 5: 数值总览
+
+This looks good. Let me finalize.
+
+Actually, I realize I should reconsider the 派系 values. The format shows "{N}" for each, which I interpret as the end-of-month value. But I should make sure my estimates are reasonable:
+
+- 阉党: 42 → 22 (massive drop due to Wei's death, -20)
+- 皇党: 58 → 63 (emperor shows strength, +5)
+- 军队: 50 → 48 (no action on arrears, -2)
+- 东林: 54 → 61 (happy about Wei's death, +7)
+- 宗室: 45 → 45 (no change)
+- 中立: 50 → 50 (no change)
+- 西学: 38 → 48 (firearms decree, +10)
+
+These seem reasonable.
+
+For 国势:
+- 民心: 46 → 45 (-1). Wei's death helps, but Shaanxi famine and Liaodong crisis hurt. Net -1.
+- 皇威: 58 → 62 (+4). Emperor eliminates Wei and shows initiative with firearms. +4.
+
+These also seem reasonable.
+
+OK, I'm ready to write the final version.
+
+One last thing: the title. "阉星陨落火器兴" is 7 characters. Good.
+
+Let me write it out now.Let me now synthesize the data and write the narrative.
+
+Key facts for December 1627:
+- Emperor just ascended (Chongzhen, 17 years old)
+- Main decree: Firearm manufacturing - Xu Guangqi to oversee, 10万两 from 内库
+- Wei Zhongxian died this month (natural death)
+- Three major crises active: 辽东索饷 (bar 25, inertia -8), 户部亏空 (bar 28, inertia -7), 陕西流寇起 (bar 30, inertia -6)
+- Candidate events: 魏忠贤请退 (historical), 辽东请饷, 陕西逃户, 朝鲜密使来朝, 湖广丰年喜雨
+
+
+- Wei Zhongxian's death resolves his candidate event, so I need to track that outcome
+- Lake Guang's bumper harvest is a positive development that should appear in the narrative
+- Korea's secret envoy could provide strategic intelligence or diplomatic leverage
+- Current treasury shows 国库 at 303万两 with 550万两 income against 247万 expenses, while 内库 sits at 439万两 but only received 452万 against 13万 in spending
+- The treasury surplus this month comes from extraordinary sources—田赋 183, 辽饷 26, 盐税 18, 商税 3, plus additional inflows that explain the large discrepancy between the monthly income and the standard budget baseline of 230万
+- The 内库 also shows an anomaly: 452万 in income far exceeds the standard 12万 baseline, suggesting a major windfall like confiscated assets from Wei Zhongxian's network flowing into the inner treasury
+- The decree itself is straightforward—10万 allocated from 内库 to Xu Guangqi for firearm development, which is a direct, single-month expenditure
+- Since Wei Zhongxian died this turn, I need to determine how his death affects the faction dynamics and whether his assets were seized by the court
+
+Now I'm working through the narrative structure. The Wei Zhongxian situation is historical and should be addressed directly—his death means the eunuch faction loses its central figure, though his network may attempt to preserve itself. The firearm initiative represents a push toward Western learning and military modernization, while the three active crises require attention: the Liaodong soldiers' pay issue is deteriorating at -8 inertia, the Ministry of Revenue deficit at -7, and the Shaanxi refugee crisis at -6. I'm also tracking whether the Korean envoy mission and Lake Guang's harvest situation materialize as events this month.
+
+For progress calculations, I'm adding the inertia values to each crisis's current state—Liaodong drops from 25 to 17, the deficit from 28 to 21, Shaanxi from 30 to 24. The firearm decree itself gives the Western learning faction a modest boost, though it doesn't directly address any of the three active crises. Since this is the opening month with no prior narrative, I'll establish the tone and set up the political landscape for what's to come.
+
+Now I'm mapping out the narrative chapters: Wei Zhongxian's death as the opening, the firearm factory initiative as the centerpiece, the three looming crises building tension, and then the unresolved issues section before the final numerical summary. The Wei Zhongxian death resolves the historical event cleanly, so I'll treat it as a completed matter rather than an ongoing situation. For the active issues, none received direct imperial action this month, so they'll only reflect their natural inertia shifts. The Korean envoy and Lake Guang harvest events are both candidates to trigger—I'll weave them into the narrative as emerging situations rather than established crises. 魏忠贤的死亡虽然是历史锚点，但这只是自然死亡，不是皇帝下令清算。东林党会感到振奋，但阉党残余势力仍在。这个事件应该作为本月发生的重大事件来处理，而不是一个需要推进的议题。魏忠贤的死亡解决了"魏忠贤请退"这个候选事件，所以我需要在叙述中体现这一点，同时考虑到这如何影响东林党和阉党残余之间的权力动态。
+
+现在我看到了完整的叙述框架：魏忠贤之死作为历史事件、火器试办作为本月诏令、三大危机作为背景局势、朝鲜密使和湖广丰年作为候选事件，以及待办未解和数值总览作为结尾。我需要确保在"陛下未知者"部分涵盖那些被隐瞒或压制的信息，然后按照这个结构组织叙述。 陕西边军欠饷73万，士兵士气仅36，饥荒与裁驿叠加，局势岌岌可危。关宁军欠饷68万，虽然士气稍高但补给不足。三场危机都在恶化，本月我未直接拨款或下旨，只能任由局势按惯性下滑。魏忠贤之死虽然铲除了一个对手，但他的党羽仍在暗中活动，阉党残余势力尚未肃清。
+
+现在看财政状况，国库从303万增至606万，主要因为抄没魏忠贤党羽的产业所得。内库则因拨付火器经费而略有下降。这些资金虽然充裕，但面对三场危机的恶化速度，仍需审慎分配。
+
+西学派因获得火器项目支持而满意度上升，东林派则因魏忠贤之死而势力增强。不过军队和农民的处境仍在恶化，特别是陕西地区农民满意度极低，这对整体民心构成威胁。
+
+湖广丰收和朝鲜密使来访是积极因素，但三场危机的恶化速度超过这些利好。我需要调整财政系数的计算——魏忠贤抄家所得一次性收入不应改变月度收入率，而火器项目虽从内库拨款但规模有限，不足以显著提升商税基础。
+
+这些系数应该保持原状。
+
+现在我来组织叙述结构，从魏忠贤之死的政治影响开始，然后依次处理火器试办、三场危机、朝鲜密使来访和湖广丰收，最后总结未解决的问题和数值总览。

@@ -1,0 +1,88 @@
+{
+  "powers": [
+    {
+      "id": "houjin",
+      "name": "后金",
+      "leader": "皇太极",
+      "stance": "敌对",
+      "leverage": 78,
+      "satisfaction": 30,
+      "military_strength": 72,
+      "cohesion": 68,
+      "supply": 58,
+      "agenda": "扩张辽东、劫掠粮饷、压迫朝鲜、试探宁锦",
+      "status": "天聪汗即位次年，欲乘明廷换君之机扰边",
+      "last_action": "努尔哈赤已死，皇太极继汗位后整顿八旗、窥伺宁锦"
+    },
+    {
+      "id": "manchu_banners",
+      "name": "满洲八旗",
+      "leader": "皇太极、代善、莽古尔泰、阿敏",
+      "stance": "敌对",
+      "leverage": 82,
+      "satisfaction": 35,
+      "military_strength": 78,
+      "cohesion": 70,
+      "supply": 55,
+      "agenda": "突破宁锦守线、劫掠畜粮人口、维持八旗贵族战功分配",
+      "status": "努尔哈赤旧部尚强，诸贝勒共议仍牵制皇太极专断",
+      "last_action": "整旗休兵，试探蒙古与辽西虚实"
+    },
+    {
+      "id": "han_banners",
+      "name": "汉军与辽人降兵",
+      "leader": "佟养性、范文程等降附文武",
+      "stance": "敌对",
+      "leverage": 46,
+      "satisfaction": 42,
+      "military_strength": 44,
+      "cohesion": 50,
+      "supply": 48,
+      "agenda": "为后金铸炮、通译、招降辽人，换取新主信任",
+      "status": "尚未成后世汉八旗规模，但辽人降兵、匠户与文吏已渐被皇太极重用",
+      "last_action": "协助修炮、抄录明边虚实"
+    },
+    {
+      "id": "mongol",
+      "name": "蒙古",
+      "leader": "林丹汗（察哈尔）",
+      "stance": "摇摆",
+      "leverage": 45,
+      "satisfaction": 40,
+      "military_strength": 52,
+      "cohesion": 38,
+      "supply": 45,
+      "agenda": "求市赏银、避后金兵锋、保部众",
+      "status": "察哈尔西迁，鄂尔多斯、土默特等部观望",
+      "last_action": "林丹汗仍试图维系统合，诸部在明、后金之间观望"
+    },
+    {
+      "id": "korea",
+      "name": "朝鲜",
+      "leader": "仁祖（李倧）",
+      "stance": "倾明",
+      "leverage": 30,
+      "satisfaction": 55,
+      "military_strength": 32,
+      "cohesion": 45,
+      "supply": 50,
+      "agenda": "维持朝贡，借明朝制衡后金，保东江牵制",
+      "status": "丁卯之役后被迫与后金兄弟之盟，仍密通明朝",
+      "last_action": "丁卯之役后谨慎周旋，仍愿暗助明军牵制皮岛"
+    },
+    {
+      "id": "bandits",
+      "name": "流寇",
+      "leader": "王嘉胤等",
+      "stance": "潜伏",
+      "leverage": 25,
+      "satisfaction": 20,
+      "military_strength": 22,
+      "cohesion": 18,
+      "supply": 20,
+      "agenda": "饥民求活、劫掠县仓、避边军围剿",
+      "status": "陕西饥荒驿卒裁汰，小股起事初见苗头",
+      "last_action": "陕西逃户与饥民散入山谷，小股啸聚"
+    }
+  ]
+}

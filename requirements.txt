@@ -1,0 +1,5 @@
+agno[openai,sqlite]>=2.6.7
+debugpy>=1.8.20
+fastapi>=0.115.0
+pexpect>=4.9.0
+uvicorn[standard]>=0.32.0

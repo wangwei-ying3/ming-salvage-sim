@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -oP '.{0,20}message\\\\.content.{0,20}' \"d:/明末/web/dist/assets/index-Cw0Lcn_K.js\")",
+      "Bash(grep -oP '.{0,20}data\\\\.content.{0,20}' \"d:/明末/web/dist/assets/index-Cw0Lcn_K.js\")",
+      "Bash(grep -oP '.{0,50}\\\\[object Object\\\\].{0,50}' \"d:/明末/web/dist/assets/index-Cw0Lcn_K.js\")",
+      "Bash(npx vite *)",
+      "Bash(powershell.exe -Command \"Stop-Process -Id 10056 -Force\")",
+      "Bash(curl -s -X POST http://localhost:8000/api/game/transfer_official -H 'Content-Type: application/json' -d '{\"name\":\"曹化淳\",\"new_office_type\":\"司礼监\"}')",
+      "Bash(python -m json.tool)",
+      "Bash(curl -s -X POST http://localhost:8000/api/game/transfer_official -H 'Content-Type: application/json' -d '{\"name\":\"曹化淳\",\"new_office_type\":\"内阁\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/game/transfer_official -H 'Content-Type: application/json' -d '{\"name\":\"曹化淳\",\"new_office\":\"秉笔太监\",\"new_office_type\":\"司礼监\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/game/transfer_official -H 'Content-Type: application/json' -d '{\"name\":\"曹化淳\",\"new_office\":\"随便\",\"new_office_type\":\"内阁\"}')",
+      "Bash(python -c ' *)",
+      "Bash(curl -v -X POST http://localhost:8000/api/game/transfer_official -H 'Content-Type: application/json' -d '{\"name\":\"曹化淳\",\"new_office\":\"东厂提督\",\"new_office_type\":\"东厂\"}')",
+      "Bash(findstr LISTENING)",
+      "Bash(powershell.exe -Command \"Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess\")",
+      "Bash(xargs -I{} powershell.exe -Command \"Stop-Process -Id {} -Force\")",
+      "Bash(curl -s -X POST http://localhost:8000/api/game/restart -H \"Content-Type: application/json\")",
+      "Bash(powershell.exe -Command 'Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess | ForEach-Object { try { Stop-Process -Id $_ -Force } catch {} }')",
+      "Bash(node -e \"const l = require\\('lucide-react'\\); console.log\\(!!l.Coins\\);\")",
+      "Bash(curl -s -X POST http://localhost:8000/api/game/cheat/add_treasury -H \"Content-Type: application/json\" -d '{\"amount\":1000000}')"
+    ]
+  }
+}

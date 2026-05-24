@@ -1,0 +1,5 @@
+{
+  "base_url": "https://api.deepseek.com/v1",
+  "model": "deepseek-v4-flash",
+  "api_key": "sk-73a60e958b65473da508f919f87bc3f3"
+}

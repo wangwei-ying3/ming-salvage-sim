@@ -1,0 +1,83 @@
+[
+  {
+    "id": "opening_deficit",
+    "title": "户部亏空",
+    "kind": "situation",
+    "severity": 80,
+    "bar_value": 30,
+    "bar_good_meaning": "财用渐丰",
+    "bar_bad_meaning": "太仓见底",
+    "inertia": -7,
+    "stage_text": "毕自严具题：太仓存银不足三百万，辽饷京营官俸赈济四项轮番告急。",
+    "tags": ["财政", "户部"],
+    "faction_hint": "户部,东林清流",
+    "region_hint": "",
+    "ongoing_effects": {
+      "metrics": {"民心": -1},
+      "economy": [{"account": "国库", "delta": -10, "category": "亏空压力", "reason": "太仓临时挪借、火耗截留、京通仓亏短"}]
+    },
+    "resolve_condition": "毕自严裁冗与开源并施，太仓月入覆盖辽饷+京营+官俸三项刚性支出；或新立稳定财源（盐课/商税/清丈）落账",
+    "fail_condition": "国库见底致刚性支出违约——欠饷哗变、官俸断发或宗禄拖欠激成宗藩闹事",
+    "effect_on_resolve": {
+      "metrics": {"皇威": 5, "民心": 3},
+      "economy": [{"account": "国库", "delta": 80, "category": "新财源落账", "reason": "财政整顿成形"}]
+    },
+    "effect_on_fail": {
+      "metrics": {"皇威": -10, "民心": -10},
+      "economy": [{"account": "国库", "delta": -50, "category": "信用崩坏", "reason": "官俸军饷违约引发的连锁亏空"}]
+    }
+  },
+  {
+    "id": "opening_liaodong",
+    "title": "辽东索饷",
+    "kind": "situation",
+    "severity": 85,
+    "bar_value": 30,
+    "bar_good_meaning": "宁锦稳固",
+    "bar_bad_meaning": "关宁哗溃",
+    "inertia": -6,
+    "stage_text": "袁崇焕、孙承宗连章告急：关宁军欠饷三月，宁锦防线缺粮，士卒鼓噪。",
+    "tags": ["军事", "边防"],
+    "faction_hint": "边镇,军队",
+    "region_hint": "辽东",
+    "ongoing_effects": {
+      "metrics": {"皇威": -1},
+      "economy": [{"account": "国库", "delta": -8, "category": "辽饷垫支", "reason": "户部从各项中挪垫辽饷"}]
+    },
+    "resolve_condition": "关宁军欠饷补齐过半，宁锦防线整训完成，袁崇焕呈出可行之春战或固守方略并按期推进",
+    "fail_condition": "关宁军欠饷激成兵变或将领私下勾结后金；宁锦防线丢失锦州/宁远任一要隘",
+    "effect_on_resolve": {
+      "metrics": {"皇威": 5}
+    },
+    "effect_on_fail": {
+      "metrics": {"皇威": -12, "民心": -3},
+      "economy": [{"account": "国库", "delta": -40, "category": "兵变善后", "reason": "哗变之后补饷+招抚+缉拿"}]
+    }
+  },
+  {
+    "id": "opening_shaanxi",
+    "title": "陕西流寇起",
+    "kind": "situation",
+    "severity": 78,
+    "bar_value": 35,
+    "bar_good_meaning": "饥民就抚",
+    "bar_bad_meaning": "成股破州县",
+    "inertia": -5,
+    "stage_text": "陕西巡按报：连岁亢旱，逃户成群，驿卒、饥民与盗匪渐混。王嘉胤、王二之徒已起。",
+    "tags": ["地方", "流寇", "饥荒"],
+    "faction_hint": "百姓,地方官,边军",
+    "region_hint": "陕西",
+    "ongoing_effects": {
+      "metrics": {"民心": -2},
+      "economy": [{"account": "国库", "delta": -5, "category": "西北赈济", "reason": "陕西救灾与剿抚临时支拨"}]
+    },
+    "resolve_condition": "陕西赈银、以工代赈、招抚客军三策并施，逃户回乡过半，王嘉胤等部就抚或解散",
+    "fail_condition": "陕西流寇成股（万人以上）攻破州县；与晋豫流寇合流；驿卒大批投寇",
+    "effect_on_resolve": {
+      "metrics": {"民心": 8}
+    },
+    "effect_on_fail": {
+      "metrics": {"民心": -15, "皇威": -8}
+    }
+  }
+]

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>明末力挽狂澜</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=ZCOOL+XiaoWei&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+<button id="reset-btn" style="position:fixed; top:10px; right:10px; z-index:9999; padding:6px 12px; background:#c0392b; color:white; border:none; border-radius:4px; cursor:pointer;">🔄 重新开始</button>
+<script>
+document.getElementById('reset-btn').addEventListener('click', async function() {
+  if (!confirm('确定要重置游戏吗？所有存档和进度将被清除！')) return;
+  try {
+    const res = await fetch('/api/game/reset', { method: 'POST' });
+    if (!res.ok) throw new Error((await res.json()).detail || '重置失败');
+    window.location.reload();
+  } catch (e) {
+    alert('重置失败：' + e.message);
+  }
+});
+</script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
