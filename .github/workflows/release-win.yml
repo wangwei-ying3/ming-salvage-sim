@@ -1,0 +1,100 @@
+name: release-win
+
+# 在 GitHub windows runner 上打 Windows 绿色版（.exe 目录 + zip）。
+# PyInstaller 不交叉编译，Mac 打不出 .exe，故用 windows-latest runner。
+#
+# 触发：
+#   - push tag v*（如 v0.1.0）→ 打包 + 自动出 GitHub Release
+#   - 手动 workflow_dispatch → 只打包 + 传 artifact（不出 release）
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号（仅用于产物命名，如 0.1.0）"
+        required: false
+        default: "0.1.0"
+
+permissions:
+  contents: write   # 出 release 需要
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -match "^v") { $v = $tag -replace "^v","" }
+          else { $v = "${{ github.event.inputs.version }}"; if (-not $v) { $v = "0.1.0" } }
+          echo "version=$v" >> $env:GITHUB_OUTPUT
+          echo "解析版本：$v"
+
+      - name: Install Python deps
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # 打包工具 + Windows webview 后端（EdgeChromium 需 pythonnet）
+          pip install pyinstaller pywebview pythonnet
+
+      - name: Build frontend
+        shell: pwsh
+        run: |
+          cd web
+          npm ci
+          npm run build
+          cd ..
+
+      - name: PyInstaller package
+        shell: pwsh
+        run: |
+          # 非 darwin → spec 跳过 BUNDLE，只 COLLECT 出 dist\MingSalvageSim\
+          pyinstaller MingSalvageSim.spec --noconfirm
+          if (-not (Test-Path "dist\MingSalvageSim\MingSalvageSim.exe")) {
+            throw "PyInstaller 未产出 MingSalvageSim.exe"
+          }
+
+      - name: Zip
+        shell: pwsh
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          $zip = "dist\MingSalvageSim-$v-win64.zip"
+          Compress-Archive -Path "dist\MingSalvageSim\*" -DestinationPath $zip -Force
+          Get-Item $zip | Format-List Name, Length
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MingSalvageSim-win64
+          path: dist/MingSalvageSim-*-win64.zip
+          retention-days: 14
+
+      - name: Create Release (tag only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/MingSalvageSim-*-win64.zip
+          body: |
+            Windows 绿色版（解压双击 MingSalvageSim.exe 即跑）。
+            首启需 LLM key；白屏多半缺 WebView2 Runtime：
+            https://developer.microsoft.com/microsoft-edge/webview2/
