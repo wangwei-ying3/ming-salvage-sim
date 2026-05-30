@@ -1625,6 +1625,87 @@ async def api_set_court_layout(body: Dict[str, Any]) -> Dict[str, Any]:
     return {"ok": True}
 
 
+# ── 皇帝技能树 API ──────────────────────────────────────────────
+
+@app.get("/api/emperor/skills")
+async def api_emperor_skills() -> Dict[str, Any]:
+    """返回所有皇帝技能（含已学习状态）+ 当前技能点 + 已学技能列表。"""
+    game = get_game()
+    db = game.db
+    state = game.state
+    skill_points_row = db.conn.execute(
+        "SELECT value FROM metrics WHERE key = 'skill_points'"
+    ).fetchone()
+    skill_points = int(skill_points_row["value"]) if skill_points_row else 0
+    learned = {row["skill_id"] for row in db.conn.execute(
+        "SELECT skill_id FROM emperor_skills"
+    ).fetchall()}
+    all_skills = game.content.emperor_skills
+    trees: Dict[str, List[Dict[str, Any]]] = {}
+    for s in all_skills:
+        sid = s.id
+        req = s.prereq
+        cost = s.cost
+        # 解锁阈值：从 unlock 字符串 "皇威>=20" 提整数
+        unlock_val = int(s.unlock.replace("皇威>=", "") or "20")
+        unlocked = state.metrics.get("皇威", 0) >= unlock_val
+        can_learn = (
+            unlocked
+            and sid not in learned
+            and (not req or req in learned)
+            and skill_points >= cost
+        )
+        item = {
+            "id": sid, "name": s.name, "tree": s.tree,
+            "desc": s.desc, "cost": cost,
+            "unlock": s.unlock, "req": req,
+            "learned": sid in learned,
+            "unlocked": unlocked, "can_learn": can_learn,
+        }
+        trees.setdefault(s.tree, []).append(item)
+    return {"trees": trees, "skill_points": skill_points, "learned": list(learned)}
+
+
+class LearnSkillBody(BaseModel):
+    skill_id: str
+
+
+@app.post("/api/emperor/skills/{skill_id}/learn")
+async def api_learn_skill(skill_id: str, body: LearnSkillBody) -> Dict[str, Any]:
+    """学习指定技能：扣技能点 + 写入 emperor_skills 表。"""
+    game = get_game()
+    db = game.db
+    state = game.state
+    skill_points_row = db.conn.execute(
+        "SELECT value FROM metrics WHERE key = 'skill_points'"
+    ).fetchone()
+    skill_points = int(skill_points_row["value"]) if skill_points_row else 0
+    all_skills = {s.id: s for s in game.content.emperor_skills}
+    if skill_id not in all_skills:
+        raise HTTPException(status_code=404, detail=f"技能 {skill_id} 不存在")
+    s = all_skills[skill_id]
+    if skill_points < s.cost:
+        raise HTTPException(status_code=400, detail=f"技能点不足（需要{s.cost}点，当前{skill_points}点）")
+    learned = {row["skill_id"] for row in db.conn.execute(
+        "SELECT skill_id FROM emperor_skills"
+    ).fetchall()}
+    if skill_id in learned:
+        raise HTTPException(status_code=400, detail="该技能已学习")
+    if s.prereq and s.prereq not in learned:
+        raise HTTPException(status_code=400, detail=f"需先学习前置技能 {s.prereq}")
+    new_points = skill_points - s.cost
+    db.conn.execute(
+        "INSERT OR REPLACE INTO metrics (key, value) VALUES ('skill_points', ?)",
+        (new_points,),
+    )
+    db.conn.execute(
+        "INSERT OR IGNORE INTO emperor_skills (skill_id, learned_turn) VALUES (?, ?)",
+        (skill_id, state.turn),
+    )
+    db.conn.commit()
+    return {"ok": True, "skill_id": skill_id, "skill_points": new_points}
+
+
 @app.get("/portraits/custom/{name}")
 async def api_get_portrait(name: str):
     path = _find_portrait_file(name)

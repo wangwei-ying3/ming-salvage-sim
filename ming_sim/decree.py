@@ -139,6 +139,17 @@ def resolve_directives(
     _emit("stage", "固定月度财政入账")
     fixed_flows = apply_fixed_period_flows(db, state)
 
+    # ── 皇帝技能点补给（每回合+1，皇威>=50时+2）─────────────────────────────────
+    hw_val = state.metrics.get("皇威", 0)
+    gain = 2 if hw_val >= 50 else 1
+    old_pts = state.metrics.get("skill_points", 0)
+    state.metrics["skill_points"] = old_pts + gain
+    db.conn.execute(
+        "INSERT OR REPLACE INTO metrics (key, value) VALUES ('skill_points', ?)",
+        (state.metrics["skill_points"],),
+    )
+    db.conn.commit()
+
     # 1.8) 记忆检索：从诏书提取实体词，召回相关历史记忆注入推演
     relevant_memories: List[Dict] = []
     secret_orders_for_sim: list = []  # try 外初始化：检索失败也不能让后续 NameError

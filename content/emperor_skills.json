@@ -1,0 +1,434 @@
+[
+  {
+    "id": "jinglve_1",
+    "name": "知己知彼",
+    "tree": "经略",
+    "desc": "对己方军队和疆域有清晰了解",
+    "cost": 1,
+    "unlock": "皇威>=20",
+    "req": ""
+  },
+  {
+    "id": "jinglve_2",
+    "name": "远交近攻",
+    "tree": "经略",
+    "desc": "联合远方势力攻击近邻",
+    "cost": 2,
+    "unlock": "皇威>=30",
+    "req": "jinglve_1"
+  },
+  {
+    "id": "jinglve_3",
+    "name": "以夷制夷",
+    "tree": "经略",
+    "desc": "利用外族矛盾分化瓦解",
+    "cost": 2,
+    "unlock": "皇威>=35",
+    "req": ""
+  },
+  {
+    "id": "jinglve_4",
+    "name": "先南后北",
+    "tree": "经略",
+    "desc": "先平定内乱再对付外敌",
+    "cost": 3,
+    "unlock": "皇威>=40",
+    "req": "jinglve_2"
+  },
+  {
+    "id": "jinglve_5",
+    "name": "联蒙抗清",
+    "tree": "经略",
+    "desc": "联合蒙古部落共同抗清",
+    "cost": 3,
+    "unlock": "皇威>=45",
+    "req": ""
+  },
+  {
+    "id": "jinglve_6",
+    "name": "以退为进",
+    "tree": "经略",
+    "desc": "战略性后撤保存实力",
+    "cost": 2,
+    "unlock": "皇威>=50",
+    "req": ""
+  },
+  {
+    "id": "jinglve_7",
+    "name": "各个击破",
+    "tree": "经略",
+    "desc": "分化敌人逐一消灭",
+    "cost": 3,
+    "unlock": "皇威>=55",
+    "req": "jinglve_4"
+  },
+  {
+    "id": "jinglve_8",
+    "name": "堡垒推进",
+    "tree": "经略",
+    "desc": "步步为营稳扎稳打",
+    "cost": 2,
+    "unlock": "皇威>=60",
+    "req": ""
+  },
+  {
+    "id": "jinglve_9",
+    "name": "诱敌深入",
+    "tree": "经略",
+    "desc": "将敌军引入预设战场围歼",
+    "cost": 3,
+    "unlock": "皇威>=65",
+    "req": ""
+  },
+  {
+    "id": "jinglve_10",
+    "name": "人民战争",
+    "tree": "经略",
+    "desc": "发动百姓参与抗战",
+    "cost": 4,
+    "unlock": "皇威>=70",
+    "req": ""
+  },
+  {
+    "id": "jinglve_11",
+    "name": "经济绞杀",
+    "tree": "经略",
+    "desc": "断敌补给线以战养战",
+    "cost": 4,
+    "unlock": "皇威>=75",
+    "req": "jinglve_7"
+  },
+  {
+    "id": "jinglve_12",
+    "name": "天命所归",
+    "tree": "经略",
+    "desc": "正统在手天下归心",
+    "cost": 5,
+    "unlock": "皇威>=80",
+    "req": "jinglve_10"
+  },
+  {
+    "id": "zhengzhi_1",
+    "name": "笼络人心",
+    "tree": "政治",
+    "desc": "施恩收买官员效忠",
+    "cost": 1,
+    "unlock": "皇威>=20",
+    "req": ""
+  },
+  {
+    "id": "zhengzhi_2",
+    "name": "分化制衡",
+    "tree": "政治",
+    "desc": "让各派系相互牵制",
+    "cost": 2,
+    "unlock": "皇威>=30",
+    "req": ""
+  },
+  {
+    "id": "zhengzhi_3",
+    "name": "清除异己",
+    "tree": "政治",
+    "desc": "罢黜或流放不听话的大臣",
+    "cost": 2,
+    "unlock": "皇威>=35",
+    "req": "zhengzhi_2"
+  },
+  {
+    "id": "zhengzhi_4",
+    "name": "启用新人",
+    "tree": "政治",
+    "desc": "破格提拔有能力的低品官员",
+    "cost": 2,
+    "unlock": "皇威>=40",
+    "req": ""
+  },
+  {
+    "id": "zhengzhi_5",
+    "name": "整饬吏治",
+    "tree": "政治",
+    "desc": "惩治贪腐整顿朝纲",
+    "cost": 3,
+    "unlock": "皇威>=45",
+    "req": "zhengzhi_3"
+  },
+  {
+    "id": "zhengzhi_6",
+    "name": "改革税制",
+    "tree": "政治",
+    "desc": "清查隐田增加财政",
+    "cost": 3,
+    "unlock": "皇威>=50",
+    "req": ""
+  },
+  {
+    "id": "zhengzhi_7",
+    "name": "设立厂卫",
+    "tree": "政治",
+    "desc": "建立特务机构监视百官",
+    "cost": 3,
+    "unlock": "皇威>=55",
+    "req": ""
+  },
+  {
+    "id": "zhengzhi_8",
+    "name": "平衡阁部",
+    "tree": "政治",
+    "desc": "让内阁与六部相互制约",
+    "cost": 3,
+    "unlock": "皇威>=60",
+    "req": "zhengzhi_5"
+  },
+  {
+    "id": "zhengzhi_9",
+    "name": "垂拱而治",
+    "tree": "政治",
+    "desc": "君主无为臣子有为",
+    "cost": 4,
+    "unlock": "皇威>=65",
+    "req": ""
+  },
+  {
+    "id": "zhengzhi_10",
+    "name": "乾纲独断",
+    "tree": "政治",
+    "desc": "大权独揽事必躬亲",
+    "cost": 4,
+    "unlock": "皇威>=70",
+    "req": "zhengzhi_8"
+  },
+  {
+    "id": "zhengzhi_11",
+    "name": "开恩施德",
+    "tree": "政治",
+    "desc": "大赦天下收拢民心",
+    "cost": 3,
+    "unlock": "皇威>=60",
+    "req": ""
+  },
+  {
+    "id": "zhengzhi_12",
+    "name": "万邦来朝",
+    "tree": "政治",
+    "desc": "四方宾服四海升平",
+    "cost": 5,
+    "unlock": "皇威>=80",
+    "req": "zhengzhi_10"
+  },
+  {
+    "id": "junlu_1",
+    "name": "阅兵示威",
+    "tree": "军旅",
+    "desc": "展示军威震慑内外",
+    "cost": 1,
+    "unlock": "皇威>=20",
+    "req": ""
+  },
+  {
+    "id": "junlu_2",
+    "name": "粮草先行",
+    "tree": "军旅",
+    "desc": "确保后勤补给线安全",
+    "cost": 2,
+    "unlock": "皇威>=30",
+    "req": ""
+  },
+  {
+    "id": "junlu_3",
+    "name": "精兵简政",
+    "tree": "军旅",
+    "desc": "裁撤老弱精炼军队",
+    "cost": 2,
+    "unlock": "皇威>=35",
+    "req": ""
+  },
+  {
+    "id": "junlu_4",
+    "name": "火器改进",
+    "tree": "军旅",
+    "desc": "引入或改良火器装备",
+    "cost": 3,
+    "unlock": "皇威>=40",
+    "req": ""
+  },
+  {
+    "id": "junlu_5",
+    "name": "练兵自强",
+    "tree": "军旅",
+    "desc": "加强军训提高战力",
+    "cost": 3,
+    "unlock": "皇威>=45",
+    "req": "junlu_3"
+  },
+  {
+    "id": "junlu_6",
+    "name": "重赏厚恤",
+    "tree": "军旅",
+    "desc": "提高军饷激励士气",
+    "cost": 3,
+    "unlock": "皇威>=50",
+    "req": ""
+  },
+  {
+    "id": "junlu_7",
+    "name": "坚城要塞",
+    "tree": "军旅",
+    "desc": "修筑防御工事",
+    "cost": 2,
+    "unlock": "皇威>=55",
+    "req": ""
+  },
+  {
+    "id": "junlu_8",
+    "name": "骑兵突袭",
+    "tree": "军旅",
+    "desc": "建立机动骑兵部队",
+    "cost": 4,
+    "unlock": "皇威>=60",
+    "req": ""
+  },
+  {
+    "id": "junlu_9",
+    "name": "水师建设",
+    "tree": "军旅",
+    "desc": "发展海军力量",
+    "cost": 3,
+    "unlock": "皇威>=65",
+    "req": ""
+  },
+  {
+    "id": "junlu_10",
+    "name": "军功爵位",
+    "tree": "军旅",
+    "desc": "以军功授爵激励将士",
+    "cost": 4,
+    "unlock": "皇威>=70",
+    "req": "junlu_6"
+  },
+  {
+    "id": "junlu_11",
+    "name": "以战养战",
+    "tree": "军旅",
+    "desc": "取之于敌用之于己",
+    "cost": 4,
+    "unlock": "皇威>=75",
+    "req": "junlu_2"
+  },
+  {
+    "id": "junlu_12",
+    "name": "铁骑纵横",
+    "tree": "军旅",
+    "desc": "铁骑横扫天下无敌",
+    "cost": 5,
+    "unlock": "皇威>=80",
+    "req": "junlu_8"
+  },
+  {
+    "id": "xueshi_1",
+    "name": "以史为鉴",
+    "tree": "学识",
+    "desc": "从历史中汲取经验教训",
+    "cost": 1,
+    "unlock": "皇威>=20",
+    "req": ""
+  },
+  {
+    "id": "xueshi_2",
+    "name": "求贤若渴",
+    "tree": "学识",
+    "desc": "广泛招揽人才",
+    "cost": 2,
+    "unlock": "皇威>=30",
+    "req": ""
+  },
+  {
+    "id": "xueshi_3",
+    "name": "兴学重教",
+    "tree": "学识",
+    "desc": "大力发展教育",
+    "cost": 2,
+    "unlock": "皇威>=35",
+    "req": ""
+  },
+  {
+    "id": "xueshi_4",
+    "name": "科举取士",
+    "tree": "学识",
+    "desc": "通过科举选拔人才",
+    "cost": 2,
+    "unlock": "皇威>=40",
+    "req": ""
+  },
+  {
+    "id": "xueshi_5",
+    "name": "科技兴国",
+    "tree": "学识",
+    "desc": "引进先进技术",
+    "cost": 3,
+    "unlock": "皇威>=45",
+    "req": "xueshi_3"
+  },
+  {
+    "id": "xueshi_6",
+    "name": "广开言路",
+    "tree": "学识",
+    "desc": "鼓励臣子直言进谏",
+    "cost": 2,
+    "unlock": "皇威>=50",
+    "req": ""
+  },
+  {
+    "id": "xueshi_7",
+    "name": "修史立典",
+    "tree": "学识",
+    "desc": "编纂典籍传承文明",
+    "cost": 3,
+    "unlock": "皇威>=55",
+    "req": ""
+  },
+  {
+    "id": "xueshi_8",
+    "name": "天文历法",
+    "tree": "学识",
+    "desc": "改进历法指导农时",
+    "cost": 3,
+    "unlock": "皇威>=60",
+    "req": "xueshi_5"
+  },
+  {
+    "id": "xueshi_9",
+    "name": "医学防疫",
+    "tree": "学识",
+    "desc": "防治瘟疫疾病",
+    "cost": 3,
+    "unlock": "皇威>=65",
+    "req": ""
+  },
+  {
+    "id": "xueshi_10",
+    "name": "印刷推广",
+    "tree": "学识",
+    "desc": "普及书籍知识",
+    "cost": 4,
+    "unlock": "皇威>=70",
+    "req": "xueshi_7"
+  },
+  {
+    "id": "xueshi_11",
+    "name": "西学东渐",
+    "tree": "学识",
+    "desc": "引进西方科学知识",
+    "cost": 4,
+    "unlock": "皇威>=75",
+    "req": "xueshi_8"
+  },
+  {
+    "id": "xueshi_12",
+    "name": "文治武功",
+    "tree": "学识",
+    "desc": "文明昌盛武力强盛",
+    "cost": 5,
+    "unlock": "皇威>=80",
+    "req": "xueshi_10"
+  }
+]

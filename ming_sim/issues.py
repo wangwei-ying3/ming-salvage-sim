@@ -265,17 +265,76 @@ def _gate_passed(gate: Dict[str, str], metrics: Dict[str, int], db: GameDB) -> b
     return True
 
 
+def _inject_threshold_crisis_events(state: GameState, db: GameDB, existing_candidates: List[Event]) -> List[Event]:
+    """检测 unrest>80 的省份和国库<50，生成阈值危机事件（防重复：existing_candidates 中已有同 region 的民变事件则不再追加）。"""
+    crisis_events: List[Event] = []
+    existing_region_ids = {ev.id for ev in existing_candidates if ev.id.startswith("crisis_unrest_")}
+
+    # 省份 unrest>80 → 民变预警
+    region_rows = db.conn.execute(
+        "SELECT id, name, unrest FROM regions WHERE unrest > 80"
+    ).fetchall()
+    for row in region_rows:
+        region_id = str(row["id"])
+        crisis_id = f"crisis_unrest_{region_id}"
+        if crisis_id in existing_region_ids:
+            continue
+        crisis_events.append(Event(
+            id=crisis_id,
+            title=f"【危机】{row['name']}民变预警",
+            kind="兵变",
+            summary=f"{row['name']}民众骚动愈演愈烈，地方官员奏报民不聊生，请求朝廷速发银粮赈济。",
+            urgency=85,
+            severity=80,
+            credibility=90,
+            interests=[row["name"], "百姓"],
+            audiences=["户部", "兵部"],
+            resolve_condition="赈济银粮到账 + 地方官员妥善处置，民变平息",
+            fail_condition="民变扩大为武装叛乱，地方失守",
+            trigger_year=0,  # 纯数据触发，无历史锚定
+            trigger_month=0,
+            trigger_gate={"region.{region_id}.unrest": ">80"},
+        ))
+
+    # 国库<50 → 财政危机（防重复：已有 crisis_treasury_empty 则不追加）
+    treasury = state.metrics.get("国库", 0)
+    if treasury < 50 and not any(ev.id == "crisis_treasury_empty" for ev in existing_candidates):
+        crisis_events.append(Event(
+            id="crisis_treasury_empty",
+            title="【危机】国库告急",
+            kind="朝政",
+            summary="国库存银不足五十万两，户部奏报各边欠饷累积，京营粮秣告罄，请旨速议筹饷之策。",
+            urgency=95,
+            severity=95,
+            credibility=95,
+            interests=["户部", "边军", "京营"],
+            audiences=["户部", "内阁"],
+            resolve_condition="加征杂税或抄没贪官家财，三个月内国库恢复到100以上",
+            fail_condition="边军哗变、京营断饷，局势急剧恶化",
+            trigger_year=0,
+            trigger_month=0,
+            trigger_gate={"metrics.国库": "<50"},
+        ))
+
+    return crisis_events
+
+
 def gather_candidate_events(state: GameState, db: GameDB) -> List[Event]:
-    """程序筛选：历史锚定事件按 trigger 时间到点、seed 情势按 trigger_gate 达标，
-    都排除已触发过的。返回的候选清单交推演 agent 因果判定是否真触发。"""
+    """程序筛选：历史锚定事件按 trigger 时间到点+trigger_condition 达标、
+    seed 情势按 trigger_gate 达标，都排除已触发过的。
+    追加阈值危机事件（unrest>80 省民变预警 / 国库<50 财政危机）。
+    返回的候选清单交推演 agent 因果判定是否真触发。"""
     c = _ctx()
     spawned = _spawned_event_refs(db)
     candidates: List[Event] = []
-    # 历史锚定 EVENTS：到点（含错过补出）即进候选
+    # 历史锚定 EVENTS：到点（含错过补出）且 trigger_condition（如有）达标即进候选
     for ev in c.events:
         if ev.id in spawned or ev.trigger_year <= 0:
             continue
         if not _event_window_open(ev, state):
+            continue
+        # trigger_condition 是额外条件：metric op value 全满足才进候选
+        if ev.trigger_condition and not _gate_passed(ev.trigger_condition, state.metrics, db):
             continue
         candidates.append(ev)
     # seed 情势：trigger_gate 阈值达标即进候选
@@ -286,7 +345,9 @@ def gather_candidate_events(state: GameState, db: GameDB) -> List[Event]:
             continue
         if _gate_passed(ev.trigger_gate, state.metrics, db):
             candidates.append(ev)
-    return candidates
+    # 阈值危机事件：unrest>80 的省份生成"民变预警"事件
+    crisis_events = _inject_threshold_crisis_events(state, db, candidates)
+    return candidates + crisis_events
 
 
 def _bar_ascii(value: int, width: int = 20) -> str:

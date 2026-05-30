@@ -124,6 +124,7 @@ def load_event_content(filename: str = "events.json") -> List[Event]:
                 precondition=str(item.get("precondition") or ""),
                 event_type=event_type,
                 trigger_gate=trigger_gate,
+                trigger_condition=gate_raw,  # 复用 gate_raw 解析逻辑，trigger_condition 格式同 trigger_gate
             )
         )
     if not events:
@@ -294,6 +295,44 @@ def dict_of_strings(value: object, path: str) -> Dict[str, str]:
     return output
 
 
+@dataclass
+class EmperorSkill:
+    id: str
+    name: str
+    tree: str
+    tier: int
+    desc: str
+    cost: int
+    unlock: str
+    prereq: str
+    effect: str
+
+
+def load_emperor_skill_content() -> List[EmperorSkill]:
+    data = require_list(load_json_asset("emperor_skills.json"), "emperor_skills.json")
+    skills: List[EmperorSkill] = []
+    tree_tiers: Dict[str, int] = {}
+    for idx, raw in enumerate(data, 1):
+        item = require_dict(raw, f"emperor_skills.json[{idx}]")
+        tree = str_field(item, "tree", f"emperor_skills.json[{idx}]")
+        # tier = position within tree based on cost ordering
+        tree_tiers[tree] = tree_tiers.get(tree, 0) + 1
+        skills.append(EmperorSkill(
+            id=str_field(item, "id", f"emperor_skills.json[{idx}]"),
+            name=str_field(item, "name", f"emperor_skills.json[{idx}]"),
+            tree=tree,
+            tier=tree_tiers[tree],
+            desc=str_field(item, "desc", f"emperor_skills.json[{idx}]"),
+            cost=int_field(item, "cost", f"emperor_skills.json[{idx}]"),
+            unlock=str_field(item, "unlock", f"emperor_skills.json[{idx}]"),
+            prereq=str(item.get("req") or ""),
+            effect=str(item.get("effect") or ""),
+        ))
+    if not skills:
+        raise SystemExit("emperor_skills.json must have at least one skill.")
+    return skills
+
+
 def load_skill_content() -> Tuple[
     Dict[str, List[str]],
     Dict[str, Dict[str, object]],
@@ -395,6 +434,9 @@ class GameContent:
     directive_skill_ids: Set[str] = field(default_factory=set)
     office_definitions: Dict[str, Dict[str, object]] = field(default_factory=dict)
     skill_tool_templates: Dict[str, str] = field(default_factory=dict)
+
+    # 皇帝技能树
+    emperor_skills: List[EmperorSkill] = field(default_factory=list)
 
     # 提示词
     game_world_prompt: str = ""

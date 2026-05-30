@@ -453,6 +453,28 @@ class GameDB:
                 FOREIGN KEY(character_name) REFERENCES characters(name)
             );
 
+            CREATE TABLE IF NOT EXISTS emperor_skills (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                tree TEXT NOT NULL,
+                tier INTEGER NOT NULL,
+                desc TEXT NOT NULL,
+                cost INTEGER NOT NULL,
+                unlock TEXT NOT NULL,
+                prereq TEXT NOT NULL DEFAULT '',
+                effect TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE TABLE IF NOT EXISTS emperor_skill_grants (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                skill_id TEXT NOT NULL,
+                acquired_turn INTEGER NOT NULL,
+                acquired_year INTEGER NOT NULL,
+                acquired_period INTEGER NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(skill_id) REFERENCES emperor_skills(id)
+            );
+
             CREATE TABLE IF NOT EXISTS turn_directives (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 turn INTEGER NOT NULL,

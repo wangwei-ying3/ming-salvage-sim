@@ -75,6 +75,7 @@ class Event:
     precondition: str = ""  # 触发前提+改写口子人话说明，喂 simulator 由 LLM 据盘面判断是否改写/跳过（见 season_simulator.md 候选情势触发判定）
     event_type: str = "situation"  # situation=转 bar issue；node=只播报不转 issue；ending=交结局判定
     trigger_gate: Dict[str, str] = field(default_factory=dict)  # seed 候选门槛：{metric: 比较式}，全满足才进候选
+    trigger_condition: Dict[str, str] = field(default_factory=dict)  # 额外触发条件：{metric: ">80"}，历史事件在时间窗口满足此条件才进候选（比 trigger_gate 更精确）
 
 
 @dataclass
@@ -197,6 +198,7 @@ class GameState:
             "内库": 440,
             "民心": 50,
             "皇威": 20,
+            "skill_points": 0,
         }
     )
     log: List[str] = field(default_factory=list)
