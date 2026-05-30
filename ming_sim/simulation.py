@@ -12,8 +12,65 @@ from ming_sim.agents import parse_agent_json, run_agent_stream_text, run_agent_t
 from ming_sim.context import historical_anchor_for_month, victory_status
 from ming_sim.db import GameDB
 from ming_sim.issues import gather_candidate_events, issue_to_payload
-from ming_sim.models import GameState
+from ming_sim.models import Event, GameState
 from ming_sim.token_stats import tlog
+
+
+# ── 月末阈值危机事件检测 ───────────────────────────────────────────────────────
+
+# 自动生成的阈值危机事件前缀（真实事件 ID 从 content.event_by_id 查）
+_THRESHOLD_CRISIS_PREFIX = "threshold_critical_"
+
+
+def _inject_threshold_crisis_events(db: GameDB, state: GameState) -> List[Event]:
+    """检查省份 unrest > 80 或 国库 < 50，注入阈值危机候选事件。
+    这些事件不写入 event_triggers，仅进入 candidate_events 列表，
+    由 simulator agent 判定是否触发/转 issue。
+    """
+    injected: List[Event] = []
+
+    # 1) 省份 unrest 超标
+    region_rows = db.conn.execute(
+        "SELECT id, name, unrest FROM regions WHERE unrest > 80"
+    ).fetchall()
+    for row in region_rows:
+        region_id = str(row["id"])
+        name = str(row["name"])
+        unrest = int(row["unrest"])
+        ev = Event(
+            id=f"{_THRESHOLD_CRISIS_PREFIX}unrest_{region_id}",
+            title=f"【阈值危机】{name}民变激化（unrest={unrest}）",
+            kind="threshold_crisis",
+            summary=f"{name}民怨沸腾，民变指数已突破 80，大明统治根基动摇。",
+            urgency=90,
+            severity=85,
+            credibility=100,
+            interests=["朝堂", "地方"],
+            audiences=["皇帝", "内阁"],
+            trigger_gate={"metrics.国威": ">0"},  # 始终通过，纯粹阈值触发
+            event_type="situation",
+        )
+        injected.append(ev)
+
+    # 2) 国库不足
+    treasury = state.metrics.get("国库", 0)
+    if treasury < 50:
+        ev = Event(
+            id=f"{_THRESHOLD_CRISIS_PREFIX}treasury",
+            title=f"【阈值危机】国库空虚（仅剩{treasury}万两）",
+            kind="threshold_crisis",
+            summary=f"国库存银不足 50 万两，军队欠饷、官俸告急，朝廷财政濒临崩溃。",
+            urgency=95,
+            severity=90,
+            credibility=100,
+            interests=["朝堂", "军队", "宗室"],
+            audiences=["皇帝", "户部"],
+            trigger_gate={"metrics.国库": "<50"},
+            event_type="situation",
+        )
+        injected.append(ev)
+
+    return injected
 
 
 TOP_LEVEL_ALIASES = {
@@ -330,9 +387,15 @@ def simulate_season_with_payload(
         relevant_memories=relevant_memories,
         secret_orders=secret_orders,
     )
+    user_message = (
+        f"【本回合年月】{state.year} 年 {state.period} 月（第 {state.turn} 回合）。"
+        f"邸报抬头与正文涉及年月时以此为准。\n"
+        + "【本回合推演输入 simulator_payload】\n"
+        + json.dumps(payload, ensure_ascii=False, sort_keys=False)
+    )
     raw = run_agent_stream_text(
         agent,
-        json.dumps({"instruction": "请根据 system 中的 simulator_payload 写本月月末奏章。"}, ensure_ascii=False),
+        user_message,
         tag="simulator",
         on_thinking=on_thinking,
         on_text=on_text,

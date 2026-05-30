@@ -292,10 +292,15 @@ def create_season_simulator_agent(
     simulator_payload: Optional[Dict[str, object]] = None,
 ) -> Agent:
     """月末推演日讲官。全量盘面走 user payload，无 tool。
-    走 advanced 角色派生：若 advanced_model 已配，用更强模型；否则 fallback 主 model。"""
+    走 advanced 角色派生：若 advanced_model 已配，用更强模型；否则 fallback 主 model。
+
+    缓存策略：system prompt 仅含静态部分（game_world_prompt / season_simulator_prompt），
+    跨月完全相同 → 前缀缓存命中。动态上下文（turn_header + simulator_payload）
+    在 agent.run() 时作为 user message 传入，不污染 system prompt。"""
     del db
     cfg = _llm_for_role(llm_config, "simulator")
     tlog(f"[simulator] 使用模型 {cfg.model}")
+
     # 显式年月单挑出来——别让 LLM 在大 JSON payload 里翻 turn 子节，邸报抬头才不会写错。
     turn_header = ""
     if state is not None:
@@ -322,7 +327,7 @@ def create_season_simulator_agent(
         session_id="season-simulator",
         db=agno_db,
         model=create_chat_model(cfg, temperature=0.9, top_p=0.95, max_tokens=cfg.max_tokens, enable_thinking=True),
-        instructions=[_ctx().game_world_prompt, simulator_context, _ctx().season_simulator_prompt],
+        instructions=[_ctx().game_world_prompt, _ctx().season_simulator_prompt, simulator_context],
         add_history_to_context=False,
         markdown=False,
     )
@@ -358,7 +363,11 @@ def create_score_extractor_module_agent(
     simulator_payload: Optional[Dict[str, object]] = None,
     supplemental_context: Optional[Dict[str, object]] = None,
 ) -> Agent:
-    """模块化打分提取员。module 对应 GameContent.score_extractor_module_prompts。"""
+    """模块化打分提取员。module 对应 GameContent.score_extractor_module_prompts。
+
+    缓存策略：system prompt 仅含静态部分（game_world_prompt / score_extractor_shared_prompt / prompt），
+    跨月完全相同 → 前缀缓存命中。动态上下文（simulator_payload / supplemental_context）
+    作为指令末尾段传入，不污染静态前缀。"""
     ctx = _ctx()
     prompt = ctx.score_extractor_module_prompts.get(module)
     if not prompt:
@@ -394,7 +403,7 @@ def create_score_extractor_module_agent(
             enable_thinking=False,
             force_json_output=True,
         ),
-        instructions=[ctx.game_world_prompt, simulator_context, ctx.score_extractor_shared_prompt, supplemental, prompt],
+        instructions=[ctx.game_world_prompt, ctx.score_extractor_shared_prompt, prompt, simulator_context, supplemental],
         add_history_to_context=False,
         markdown=False,
     )

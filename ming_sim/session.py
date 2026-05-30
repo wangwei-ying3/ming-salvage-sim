@@ -551,12 +551,30 @@ class GameSession:
         # 控制指令（退下/换人/技能）由 CLI 层 parse_court_command 处理；
         # GameSession.chat 只负责与 agent 对话与 tool 截获。
         agent = self.registry.get(character)
+        # 注入动态上下文（年月、朝会盘面、上回合旧事、自己名下密令），
+        # 确保 system prompt 静态部分跨月不变、前缀缓存命中。
+        # 这些信息原本在 create_minister_agent 的 instructions 末尾，现移至 user message。
+        from ming_sim.registry import build_court_brief, build_memory_brief, build_secret_order_brief
+        reg_context = self.registry.context
+        month_block_parts = [
+            f"当前为 {self.state.year} 年 {self.state.period} 月（第 {self.state.turn} 回合）。"
+            "作答涉及时序（某事多久前、某人是否已亡、某限期是否到）时以此为准。",
+            f"本{TURN_UNIT}朝会盘面：{build_court_brief(reg_context)}",
+        ]
+        mem = build_memory_brief(character, reg_context)
+        if mem:
+            month_block_parts.append(mem)
+        sec = build_secret_order_brief(character, reg_context)
+        if sec:
+            month_block_parts.append(sec)
+        dynamic_context = "\n\n".join(month_block_parts)
         augmented = self._retrieve_memories_for_message(message)
         # 本回合已核定草案随大臣议事滚动累加，agent system 在月初冻结拿不到——
         # 每次 chat 前置实时 draft_line 到 user message 头，确保大臣看得到兄弟大臣最新动作。
         draft_line = self.registry.build_draft_line()
         if draft_line and draft_line != "无":
             augmented = f"【本{TURN_UNIT}已核定草案】{draft_line}\n\n{augmented}"
+        augmented = f"{dynamic_context}\n\n{augmented}"
         run_output = agent.run(augmented)
         answer = extract_agent_text(run_output)
         result = ChatTurnResult(answer=answer)

@@ -320,32 +320,20 @@ def create_minister_agent(
         ]
         tools = [_make_cultivate_tool(character, context)]
     else:
-        # 月度动态上下文全挂 system 末尾——每月变一次破尾段缓存，但前面 game_world /
-        # minister_agent / character 静态段仍命中前缀缓存，且大臣全程不会因 history 滚窗
-        # 而忘掉年月、钱粮、在办事项、上回合旧事、自己名下密令。
-        court_brief = build_court_brief(context)
-        memory_brief = build_memory_brief(character, context)
-        secret_brief = build_secret_order_brief(character, context)
-        monthly_block_parts = [
-            f"当前为 {context.state.year} 年 {context.state.period} 月（第 {context.state.turn} 回合）。"
-            "作答涉及时序（某事多久前、某人是否已亡、某限期是否到）时以此为准。",
-            f"本{TURN_UNIT}朝会盘面：{court_brief}",
-        ]
-        if memory_brief:
-            monthly_block_parts.append(memory_brief)
-        if secret_brief:
-            monthly_block_parts.append(secret_brief)
+        # 缓存策略：system prompt 仅含静态部分（game_world_prompt / minister_agent_prompt / character_context），
+        # 跨月完全相同 → 前缀缓存命中。
+        # 动态上下文（年月、朝会盘面、上回合旧事、密令）作为 user message 传入，不污染静态前缀。
         instructions = [
             c.game_world_prompt,
             c.minister_agent_prompt,
             f"你当前扮演：{character_context_with_db(character, context.db)}。",
             f"你与皇帝的多轮对话会持续到本{TURN_UNIT}退朝；同一{TURN_UNIT}复召时要接续此前奏对，不要重置记忆。",
-            "\n\n".join(monthly_block_parts),
         ]
         tools = build_minister_tools(character, context)
         # 司礼监（内官管后宫）与礼部（议礼册封）可奉旨选妃：现场拟就秀女名单呈御览。
         if character.office_type in ("司礼监", "礼部"):
             tools.append(_make_select_consort_tool(context))
+    # 动态上下文通过 Agent.run() 的 user message 传入
     return Agent(
         name=character.name,
         id=f"minister-{character.name}",
