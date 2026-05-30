@@ -239,7 +239,7 @@ type GameState = {
 type ChatMessage = { role: "user" | "minister"; content: string };
 type ChatDisplayMessage = ChatMessage & { pending?: boolean };
 type Suggestion = { label: string; text: string; prefix?: boolean };
-type ModalName = "none" | "state" | "chat" | "edict" | "report" | "extraction" | "history" | "menu" | "secret_orders";
+type ModalName = "none" | "state" | "chat" | "edict" | "report" | "extraction" | "history" | "menu" | "secret_orders" | "minister_detail" | "faction_network" | "general_skills" | "consort_profile";
 type SaveEntry = { name: string; size: number; mtime: number };
 type LLMConfigInfo = {
   base_url: string;
@@ -535,6 +535,7 @@ function App() {
   const [ministerGroup, setMinisterGroup] = React.useState("内阁+六部");
   const [haremGroup, setHaremGroup] = React.useState("全部");
   const [selectedMinister, setSelectedMinister] = React.useState<string>("");
+  const [detailMinister, setDetailMinister] = React.useState<Minister | null>(null);
   const [temporaryActiveMinister, setTemporaryActiveMinister] = React.useState<Minister | null>(null);
   const [activeModal, setActiveModal] = React.useState<ModalName>("none");
   const [chat, setChat] = React.useState<ChatMessage[]>([]);
@@ -756,6 +757,21 @@ function App() {
     setPendingUserMessage("");
     setStreamingMinisterMessage("");
     loadMinisterChat(minister.name).catch((err) => setError(err.message));
+  };
+
+  const openDetailMinister = (minister: Minister) => {
+    setDetailMinister(minister);
+    setActiveModal("minister_detail");
+  };
+
+  const openFactionNetwork = () => setActiveModal("faction_network");
+  const openGeneralSkills = (general: Minister) => {
+    setDetailMinister(general);
+    setActiveModal("general_skills");
+  };
+  const openConsortProfile = (consort: Minister) => {
+    setDetailMinister(consort);
+    setActiveModal("consort_profile");
   };
 
   const selectMapNode = (nodeId: string) => {
@@ -1015,6 +1031,8 @@ function App() {
   return (
     <main className="game-shell">
       <GrandMap nodes={state.map_nodes} selectedId={mapIntelOpen ? selectedNode?.id || "" : ""} onSelect={selectMapNode} />
+      {/* FEATURE: 热力图 + 势力图标 + 战场动画层 */}
+      <MapOverlays state={state} selectedNodeId={selectedNodeId} mapIntelOpen={mapIntelOpen} />
       <TopStatusBar
         state={state}
         onOpenState={() => setActiveModal("state")}
@@ -1094,6 +1112,30 @@ function App() {
             onOpenEdict={() => setActiveModal("edict")}
             onClose={guardClose(() => setActiveModal("none"))}
           />
+        </FullscreenModal>
+      ) : null}
+
+      {activeModal === "minister_detail" && detailMinister ? (
+        <FullscreenModal title={detailMinister.name} subtitle={detailMinister.office} bgClass="modal-bg-state" onClose={() => setActiveModal("none")}>
+          <MinisterDetailModal minister={detailMinister} onClose={() => setActiveModal("none")} onOpenSkills={openGeneralSkills} />
+        </FullscreenModal>
+      ) : null}
+
+      {activeModal === "faction_network" ? (
+        <FullscreenModal title="派系关系图" subtitle="势力网络一览" bgClass="modal-bg-state" onClose={() => setActiveModal("none")}>
+          <FactionNetworkModal ministers={state.ministers} onClose={() => setActiveModal("none")} onSelectMinister={openDetailMinister} />
+        </FullscreenModal>
+      ) : null}
+
+      {activeModal === "general_skills" && detailMinister ? (
+        <FullscreenModal title={`${detailMinister.name} — 技能详情`} subtitle="武将技能" bgClass="modal-bg-state" onClose={() => setActiveModal("none")}>
+          <GeneralSkillPanel minister={detailMinister} onClose={() => setActiveModal("none")} />
+        </FullscreenModal>
+      ) : null}
+
+      {activeModal === "consort_profile" && detailMinister ? (
+        <FullscreenModal title="妃嫔档案" subtitle={detailMinister.name} bgClass="modal-bg-chat" onClose={() => setActiveModal("none")}>
+          <ConsortProfileModal consort={detailMinister} onClose={() => setActiveModal("none")} />
         </FullscreenModal>
       ) : null}
 
@@ -1337,6 +1379,7 @@ function MinisterCardList({
   selectedMinister: string;
   emptyNote: string;
   onOpenChat: (minister: Minister) => void;
+  onOpenDetail?: (minister: Minister) => void;
   onUploadPortrait?: (ministerName: string, file: File) => Promise<void>;
   courtMode?: boolean;
 }) {
@@ -1511,6 +1554,11 @@ function MinisterCardList({
                 </div>
                 <span className="minister-bio">{minister.summary}</span>
               </div>
+              {onOpenDetail && (
+                <button className="minister-detail-btn" onClick={(e) => { e.stopPropagation(); onOpenDetail(minister); }} title="查看详情">
+                  <Edit3 size={12} />
+                </button>
+              )}
               {minister.favorite && <Star className="favorite-mark" size={13} />}
             </button>
           );
@@ -1675,6 +1723,7 @@ function CourtDrawer({
           selectedMinister={selectedMinister}
           emptyNote="此栏暂无可召见大臣。"
           onOpenChat={onOpenChat}
+          onOpenDetail={openDetailMinister}
           courtMode={ministerGroup !== "全部"}
         />
       </aside>
@@ -1729,6 +1778,7 @@ function HaremDrawer({
           selectedMinister={selectedMinister}
           emptyNote="后宫暂无可召见之人。"
           onOpenChat={onOpenChat}
+          onOpenDetail={openConsortProfile}
           onUploadPortrait={onUploadPortrait}
         />
       </aside>
@@ -4208,6 +4258,358 @@ function SaveListModal({
         </ul>
         <div className="menu-modal-actions">
           <button onClick={onClose}>关闭</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// FEATURE COMPONENTS
+// ============================================
+
+// --- 热力图 + 势力图标 + 战场动画层 ---
+function MapOverlays({ state, selectedNodeId, mapIntelOpen }: { state: GameState; selectedNodeId: string; mapIntelOpen: boolean }) {
+  // 热力图：根据各省 unrest 值生成叠加层
+  const heatNodes = state.regions.map((r) => {
+    const node = state.map_nodes.find((n) => n.region?.id === r.id);
+    if (!node) return null;
+    const intensity = Math.min(1, (r.unrest || 0) / 100);
+    if (intensity < 0.05) return null;
+    const red = Math.round(intensity * 220);
+    const green = Math.round((1 - intensity) * 80);
+    return { x: node.x, y: node.y, color: `rgba(${red},${green},0,${intensity * 0.7})`, name: r.name };
+  }).filter(Boolean);
+
+  // 势力图标：外部势力在地图上的位置
+  const powerColors: Record<string, string> = {
+    houjin: "#8a2f25",
+    bandits: "#8a6424",
+    mengen: "#3a5a3a",
+  };
+  const powerEmblems: Record<string, string> = {
+    houjin: "金",
+    bandits: "寇",
+    mengen: "蒙",
+  };
+  const externalPowers = state.powers.filter((p) => p.kind === "external" || p.id !== "ming");
+
+  return (
+    <>
+      {/* 热力图 */}
+      <div className="map-heat-layer" aria-hidden="true">
+        <svg width="100%" height="100%" style={{ position: "absolute", inset: 0 }}>
+          {heatNodes.map((n, i) => n && (
+            <ellipse key={i} cx={`${n.x}%`} cy={`${n.y}%`} rx="8%" ry="5%"
+              fill={n.color} style={{ mixBlendMode: "multiply" }} />
+          ))}
+        </svg>
+      </div>
+
+      {/* 势力图标 */}
+      {externalPowers.map((p) => {
+        const node = state.map_nodes.find((n) => n.kind === "external" && n.label?.includes(p.name));
+        if (!node) return null;
+        return (
+          <div
+            key={p.id}
+            className="power-map-icon"
+            style={{ left: `${node.x}%`, top: `${node.y}%` }}
+            aria-hidden="true"
+          >
+            <div
+              className="power-icon-emblem"
+              style={{ background: powerColors[p.id] || "#5a4a30" }}
+            >
+              {powerEmblems[p.id] || p.name[0]}
+            </div>
+            <span className="power-icon-label">{p.name}</span>
+          </div>
+        );
+      })}
+
+      {/* 战场动画 */}
+      {state.powers.map((p) => {
+        if (!p.last_action || p.status === "defeated") return null;
+        // 简单动画：如果势力有军事行动，显示行军箭头
+        const fromNode = state.map_nodes.find((n) => n.kind === "theater" && n.armies.some((a) => a.controller === p.id));
+        const toNode = state.map_nodes[0]; // 默认目标
+        if (!fromNode) return null;
+        return (
+          <svg key={p.id} className="battle-march-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <marker id={`arrowhead-${p.id}`} markerWidth="4" markerHeight="4" refX="2" refY="2" orient="auto">
+                <polygon points="0 0, 4 2, 0 4" className="battle-arrow-head" />
+              </marker>
+            </defs>
+            <line
+              className="battle-arrow"
+              x1={`${fromNode.x}%`} y1={`${fromNode.y}%`}
+              x2={`${(fromNode.x + 50) % 100}%`} y2={`${(fromNode.y + 30) % 100}%`}
+              markerEnd={`url(#arrowhead-${p.id})`}
+            />
+          </svg>
+        );
+      })}
+    </>
+  );
+}
+
+// --- 大臣详情弹窗 ---
+function MinisterDetailModal({ minister, onClose, onOpenSkills }: {
+  minister: Minister;
+  onClose: () => void;
+  onOpenSkills?: (m: Minister) => void;
+}) {
+  const isOusted = minister.status !== "active";
+  const isGeneral = minister.office.includes("总兵") || minister.office.includes("将军") || minister.office.includes("镇守");
+  const poolFallback = minister.portrait_id ? `/portraits/${minister.portrait_id}.png` : undefined;
+  const dedicated = minister.portrait_id?.startsWith("custom:")
+    ? `/portraits/custom/${encodeURIComponent(minister.name)}?t=${cacheBust(minister.portrait_id!)}`
+    : `/portraits/minister_${minister.id ?? minister.name}.png`;
+
+  return (
+    <div className="fullscreen-modal minister-detail-modal" role="dialog" aria-modal="true">
+      <div className="modal-bg" onClick={onClose} />
+      <div className="modal-panel">
+        <div className="modal-header">
+          <h2 className="modal-title"><Crown size={18} /> {minister.name}</h2>
+          <button className="icon-button" onClick={onClose}><X size={16} /></button>
+        </div>
+        <div className="modal-scroll">
+          <div className="minister-detail-header">
+            <img
+              src={dedicated}
+              alt={minister.name}
+              className="minister-detail-portrait"
+              onError={(e) => { if (poolFallback) (e.target as HTMLImageElement).src = poolFallback; }}
+            />
+            <div className="minister-detail-name-block">
+              <h3 className="minister-detail-name">{minister.name}</h3>
+              <div className="minister-detail-meta">
+                {minister.office && <span className="minister-detail-tag">{minister.office}</span>}
+                {minister.faction && <span className="minister-detail-tag" style={{ background: "var(--blue)" }}>{minister.faction}</span>}
+                <span className={`minister-detail-tag ${isOusted ? "tag-ousted" : ""}`}>{minister.status_label}</span>
+                {minister.style && <span className="minister-detail-tag" style={{ background: "var(--jade)" }}>{minister.style}</span>}
+              </div>
+              <p className="minister-detail-bio">{minister.summary}</p>
+            </div>
+          </div>
+
+          {minister.skills && minister.skills.length > 0 && (
+            <div className="minister-detail-section">
+              <h4>特殊技能</h4>
+              <div className="skill-badge-list">
+                {minister.skills.map((s) => (
+                  <div key={s.id} style={{ marginBottom: 6 }}>
+                    <span className="skill-badge">{s.name}</span>
+                    <p className="skill-badge-desc">{s.description}</p>
+                  </div>
+                ))}
+              </div>
+              {isGeneral && onOpenSkills && (
+                <button className="primary" style={{ marginTop: 10 }} onClick={() => onOpenSkills(minister)}>
+                  查看技能详情
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="minister-detail-section">
+            <h4>派系</h4>
+            <p>{minister.faction || "无派系"}</p>
+          </div>
+
+          <div className="minister-detail-section">
+            <h4>备注</h4>
+            <p>{minister.status_reason || "无"}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- 人物关系网络图 ---
+function FactionNetworkModal({ ministers, onClose, onSelectMinister }: {
+  ministers: Minister[];
+  onClose: () => void;
+  onSelectMinister: (m: Minister) => void;
+}) {
+  // 派系颜色映射
+  const factionColors: Record<string, string> = {
+    "东林": "#3a6b8a",
+    "阉党": "#8a2f25",
+    "浙党": "#5a7a3a",
+    "楚党": "#7a5a3a",
+    "东宫": "#6a3a7a",
+    "后金": "#8a2f25",
+    "流寇": "#8a6424",
+  };
+  const factionColor = (f: string) => factionColors[f] || "#725f42";
+
+  // 简化布局：按派系分组放射状
+  const factions = [...new Set(ministers.map((m) => m.faction).filter(Boolean))] as string[];
+  const centerX = 280, centerY = 190, radius = 140;
+  const nodeMap: Record<string, { x: number; y: number; members: Minister[] }> = {};
+  factions.forEach((f, fi) => {
+    const angle = (fi / factions.length) * 2 * Math.PI - Math.PI / 2;
+    nodeMap[f] = {
+      x: centerX + radius * Math.cos(angle),
+      y: centerY + radius * Math.sin(angle),
+      members: ministers.filter((m) => m.faction === f),
+    };
+  });
+
+  const edges: Array<{ x1: number; y1: number; x2: number; y2: number; hostile?: boolean }> = [];
+  for (let i = 0; i < factions.length; i++) {
+    for (let j = i + 1; j < factions.length; j++) {
+      const fi = factions[i], fj = factions[j];
+      const hostile = (fi === "东林" && fj === "阉党") || (fi === "阉党" && fj === "东林");
+      edges.push({
+        x1: nodeMap[fi].x, y1: nodeMap[fi].y,
+        x2: nodeMap[fj].x, y2: nodeMap[fj].y,
+        hostile: !!hostile,
+      });
+    }
+  }
+
+  return (
+    <div className="fullscreen-modal" role="dialog" aria-modal="true">
+      <div className="modal-bg" onClick={onClose} />
+      <div className="modal-panel" style={{ maxWidth: 640 }}>
+        <div className="modal-header">
+          <h2 className="modal-title"><Landmark size={18} /> 派系关系图</h2>
+          <button className="icon-button" onClick={onClose}><X size={16} /></button>
+        </div>
+        <div className="modal-scroll">
+          <div className="faction-network-wrap">
+            <svg width="560" height="380" viewBox="0 0 560 380">
+              {/* 连线 */}
+              {edges.map((e, i) => (
+                <line key={i} className={`faction-edge ${e.hostile ? "edge-hostile" : ""}`}
+                  x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} />
+              ))}
+              {/* 派系节点 */}
+              {Object.entries(nodeMap).map(([f, data]) => (
+                <g key={f} className="faction-node" onClick={() => onSelectMinister(data.members[0])}>
+                  <circle cx={data.x} cy={data.y} r={22} fill={factionColor(f)} opacity={0.85}
+                    stroke="rgba(255,239,185,0.6)" strokeWidth={1.5} />
+                  <text x={data.x} y={data.y + 4} className="faction-node-label" fill="#fff8e8">{f}</text>
+                  <text x={data.x} y={data.y + 38} textAnchor="middle" fontSize={10} fill="var(--muted)">
+                    {data.members.length}人
+                  </text>
+                </g>
+              ))}
+            </svg>
+          </div>
+          <div className="faction-legend">
+            {factions.map((f) => (
+              <div key={f} className="faction-legend-item">
+                <span className="faction-legend-dot" style={{ background: factionColor(f) }} />
+                <span>{f}</span>
+              </div>
+            ))}
+            <div className="faction-legend-item">
+              <span style={{ width: 20, height: 2, background: "var(--cinnabar)", display: "inline-block" }} />
+              <span>敌对</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- 武将技能树面板 ---
+function GeneralSkillPanel({ minister, onClose }: { minister: Minister; onClose: () => void }) {
+  const skills = minister.skills || [];
+  const skillIcons = ["⚔️", "🏹", "🛡️", "🎯", "🔥", "💨"];
+  return (
+    <div className="fullscreen-modal" role="dialog" aria-modal="true">
+      <div className="modal-bg" onClick={onClose} />
+      <div className="modal-panel" style={{ maxWidth: 560 }}>
+        <div className="modal-header">
+          <h2 className="modal-title"><Swords size={18} /> {minister.name} — 技能</h2>
+          <button className="icon-button" onClick={onClose}><X size={16} /></button>
+        </div>
+        <div className="modal-scroll">
+          <div className="general-skill-panel">
+            {skills.length === 0 && <p className="empty-note">此将暂无特殊技能记录。</p>}
+            {skills.map((s, i) => (
+              <div key={s.id} className="skill-tree-row">
+                <div className="skill-icon-box">{skillIcons[i % skillIcons.length]}</div>
+                <div className="skill-tree-info">
+                  <div className="skill-tree-name">{s.name}</div>
+                  <div className="skill-tree-sources">{s.sources.join(" / ")}</div>
+                  <div className="skill-tree-desc">{s.description}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ padding: "12px 0", borderTop: "1px solid var(--border)", marginTop: 12 }}>
+            <h4 style={{ fontFamily: "var(--font-brush)", marginBottom: 8 }}>兵种信息</h4>
+            <p style={{ fontSize: "0.88rem", color: "var(--muted)" }}>
+              现任职务：{minister.office || "无"} &nbsp;|&nbsp; 派系：{minister.faction || "无"}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- 后宫妃嫔档案卡 ---
+function ConsortProfileModal({ consort, onClose }: { consort: Minister; onClose: () => void }) {
+  const poolFallback = consort.portrait_id ? `/portraits/${consort.portrait_id}.png` : undefined;
+  const dedicated = consort.portrait_id?.startsWith("custom:")
+    ? `/portraits/custom/${encodeURIComponent(consort.name)}?t=${cacheBust(consort.portrait_id!)}`
+    : `/portraits/consort_${consort.id ?? consort.name}.png`;
+
+  return (
+    <div className="fullscreen-modal consort-profile-modal" role="dialog" aria-modal="true">
+      <div className="modal-bg" onClick={onClose} />
+      <div className="modal-panel" style={{ maxWidth: 520 }}>
+        <div className="modal-header">
+          <h2 className="modal-title"><Crown size={18} /> 妃嫔档案</h2>
+          <button className="icon-button" onClick={onClose}><X size={16} /></button>
+        </div>
+        <div className="modal-scroll">
+          <div className="consort-profile-card">
+            <img
+              src={dedicated}
+              alt={consort.name}
+              className="consort-profile-portrait"
+              onError={(e) => { if (poolFallback) (e.target as HTMLImageElement).src = poolFallback; }}
+            />
+            <h3 className="consort-profile-name">{consort.name}</h3>
+            <div className="consort-profile-tags">
+              {consort.office && <span className="minister-detail-tag">{consort.office}</span>}
+              {consort.style && <span className="minister-detail-tag" style={{ background: "var(--jade)" }}>{consort.style}</span>}
+              <span className={`minister-detail-tag ${consort.status !== "active" ? "tag-ousted" : ""}`}>{consort.status_label}</span>
+            </div>
+
+            <div className="consort-profile-section">
+              <h4>简介</h4>
+              <p style={{ fontSize: "0.9rem", lineHeight: 1.6 }}>{consort.summary}</p>
+            </div>
+
+            {consort.skills && consort.skills.length > 0 && (
+              <div className="consort-profile-section">
+                <h4>才艺</h4>
+                <div className="skill-badge-list">
+                  {consort.skills.map((s) => (
+                    <span key={s.id} className="skill-badge">{s.name}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="consort-profile-section">
+              <h4>备注</h4>
+              <p style={{ fontSize: "0.85rem", color: "var(--muted)" }}>{consort.status_reason || "无"}</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

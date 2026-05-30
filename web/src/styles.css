@@ -4200,3 +4200,352 @@ button:disabled {
 .command-badge-secret {
   background: #8a2020 !important;
 }
+
+/* ============================================
+   FEATURE: 地图热力图 (unrest heat tint)
+   ============================================ */
+.map-heat-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0.32;
+  mix-blend-mode: multiply;
+  transition: opacity 800ms ease;
+}
+.map-heat-layer.high-opacity {
+  opacity: 0.52;
+}
+
+/* ============================================
+   FEATURE: 势力图标 (power faction icons)
+   ============================================ */
+.power-map-icon {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+  animation: powerIconPulse 3s ease-in-out infinite;
+}
+.power-map-icon .power-icon-emblem {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(0,0,0,0.5);
+  font-size: 12px;
+}
+.power-map-icon .power-icon-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: rgba(247, 238, 210, 0.9);
+  text-shadow: 0 0 4px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.6);
+  white-space: nowrap;
+}
+@keyframes powerIconPulse {
+  0%, 100% { opacity: 0.85; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+}
+
+/* ============================================
+   FEATURE: 战场动画 (battle arrow animation)
+   ============================================ */
+.battle-march-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.battle-arrow {
+  stroke: var(--cinnabar, #9e3429);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  fill: none;
+  stroke-dasharray: 12 6;
+  animation: marchDash 1.2s linear infinite;
+}
+.battle-arrow-head {
+  fill: var(--cinnabar, #9e3429);
+  stroke: none;
+}
+@keyframes marchDash {
+  from { stroke-dashoffset: 18; }
+  to { stroke-dashoffset: 0; }
+}
+.battle-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  fill: var(--cinnabar, #9e3429);
+}
+
+/* ============================================
+   FEATURE: 大臣详情弹窗 (Minister Detail Modal)
+   ============================================ */
+.minister-detail-modal .modal-scroll {
+  max-height: 70vh;
+}
+.minister-detail-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.minister-detail-portrait {
+  width: 72px;
+  height: 90px;
+  border-radius: 4px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  box-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+  background: var(--panel);
+}
+.minister-detail-name-block {
+  flex: 1;
+}
+.minister-detail-name {
+  font-family: var(--font-brush);
+  font-size: 1.3rem;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  margin: 0 0 4px;
+}
+.minister-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.minister-detail-tag {
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: var(--gold-soft);
+  color: #fff8e8;
+  opacity: 0.9;
+}
+.minister-detail-tag.tag-ousted {
+  background: var(--red);
+}
+.minister-detail-bio {
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.minister-detail-section {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.minister-detail-section:last-child {
+  border-bottom: none;
+}
+.minister-detail-section h4 {
+  font-family: var(--font-brush);
+  font-size: 0.9rem;
+  color: var(--gold-soft);
+  margin: 0 0 8px;
+  letter-spacing: 0.04em;
+}
+.skill-badge-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.skill-badge {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  background: var(--jade);
+  color: #fff8e8;
+  font-weight: 700;
+}
+.skill-badge-desc {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* ============================================
+   FEATURE: 人物关系网络图 (Faction Network)
+   ============================================ */
+.faction-network-wrap {
+  width: 100%;
+  height: 380px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(38, 25, 15, 0.06);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.faction-network-wrap svg {
+  max-width: 100%;
+  max-height: 100%;
+}
+.faction-node {
+  cursor: pointer;
+  transition: transform 200ms ease;
+}
+.faction-node:hover {
+  transform: scale(1.15);
+}
+.faction-node-label {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--ink);
+  text-anchor: middle;
+  pointer-events: none;
+}
+.faction-edge {
+  stroke: rgba(74, 45, 20, 0.35);
+  stroke-width: 1.2;
+  stroke-dasharray: 4 3;
+}
+.faction-edge.edge-hostile {
+  stroke: var(--cinnabar);
+  stroke-dasharray: none;
+  stroke-width: 1.5;
+  opacity: 0.7;
+}
+.faction-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 0.8rem;
+}
+.faction-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.faction-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* ============================================
+   FEATURE: 武将技能树 (General Skill Panel)
+   ============================================ */
+.general-skill-panel {
+  padding: 4px 0;
+}
+.skill-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed rgba(74, 45, 20, 0.2);
+}
+.skill-tree-row:last-child {
+  border-bottom: none;
+}
+.skill-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  background: var(--jade);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff8e8;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.skill-tree-info {
+  flex: 1;
+}
+.skill-tree-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+.skill-tree-sources {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.skill-tree-desc {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* ============================================
+   FEATURE: 后宫妃嫔档案卡 (Consort Profile)
+   ============================================ */
+.consort-profile-modal .modal-scroll {
+  max-height: 70vh;
+}
+.consort-profile-card {
+  padding: 20px;
+}
+.consort-profile-portrait {
+  width: 120px;
+  height: 150px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  box-shadow: 3px 3px 12px rgba(0,0,0,0.35);
+  display: block;
+  margin: 0 auto 16px;
+  background: var(--panel);
+}
+.consort-profile-name {
+  font-family: var(--font-brush);
+  font-size: 1.4rem;
+  text-align: center;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+.consort-profile-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.consort-profile-section {
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.consort-profile-section h4 {
+  font-family: var(--font-brush);
+  font-size: 0.88rem;
+  color: var(--gold-soft);
+  margin: 0 0 6px;
+}
+
+/* 大臣详情按钮 */
+.minister-detail-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--gold-soft);
+  color: #fff8e8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 200ms ease;
+  padding: 0;
+}
+.minister-card:hover .minister-detail-btn,
+.minister-card.selected .minister-detail-btn {
+  opacity: 1;
+}
