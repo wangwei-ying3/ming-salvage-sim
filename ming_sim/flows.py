@@ -340,7 +340,7 @@ def apply_fixed_period_flows(db: GameDB, state: GameState) -> List[Dict[str, obj
     #   缺口 → arrears += 缺口；当月足额且仍有国库余 → arrears -= 抵欠（不下穿 0）。
     # 拨饷诏书走 economy_moves 加钱进国库，下月自动抵旧欠。extractor 禁写 arrears。
     army_rows_raw = db.conn.execute(
-        "SELECT id, name, maintenance_per_turn, arrears, morale FROM armies"
+        "SELECT id, name, maintenance_per_turn, arrears, morale, loyalty FROM armies"
     ).fetchall()
     if not army_rows_raw:
         raise SystemExit("fiscal_tick: armies 表无数据，中止。")
@@ -360,6 +360,7 @@ def apply_fixed_period_flows(db: GameDB, state: GameState) -> List[Dict[str, obj
 
         old_arrears = int(row["arrears"])
         old_morale = int(row["morale"])
+        old_loyalty = int(row["loyalty"])
 
         # 月固定军饷只发当月，不主动还旧欠。旧欠累积拖着，等玩家下旨拨饷才清。
         if pay_current > 0:
@@ -370,15 +371,20 @@ def apply_fixed_period_flows(db: GameDB, state: GameState) -> List[Dict[str, obj
         new_arrears = max(0, old_arrears + shortfall)
         if shortfall > 0:
             morale_delta = -max(1, round(8 * shortfall / needed))
+            # 欠饷→忠诚联动：arrears 高的军队 loyalty 持续流失
+            loyalty_delta = -max(1, round(4 * old_arrears / needed))
         elif old_arrears == 0:
             morale_delta = +2     # 长期足额且无旧欠：缓慢恢复
+            loyalty_delta = +1    # loyalty 小幅回升
         else:
             morale_delta = 0      # 当月发足但仍有旧欠：不奖励也不惩罚
+            loyalty_delta = 0
         new_morale = max(0, min(100, old_morale + morale_delta))
+        new_loyalty = max(0, min(100, old_loyalty + loyalty_delta))
 
         db.conn.execute(
-            "UPDATE armies SET arrears = ?, morale = ? WHERE id = ?",
-            (new_arrears, new_morale, army_id),
+            "UPDATE armies SET arrears = ?, morale = ?, loyalty = ? WHERE id = ?",
+            (new_arrears, new_morale, new_loyalty, army_id),
         )
         if shortfall > 0:
             reason_tag = f"{TURN_UNIT}军饷欠发{shortfall}万两"
@@ -395,6 +401,9 @@ def apply_fixed_period_flows(db: GameDB, state: GameState) -> List[Dict[str, obj
                 (state.turn, state.year, state.period, army_id,
                  "morale", str(old_morale), str(new_morale), new_morale - old_morale,
                  reason_tag),
+                (state.turn, state.year, state.period, army_id,
+                 "loyalty", str(old_loyalty), str(new_loyalty), new_loyalty - old_loyalty,
+                 reason_tag),
             ],
         )
         db.conn.commit()
@@ -405,6 +414,7 @@ def apply_fixed_period_flows(db: GameDB, state: GameState) -> List[Dict[str, obj
             "shortfall": shortfall,
             "arrears_delta": new_arrears - old_arrears,
             "morale_delta": new_morale - old_morale,
+            "loyalty_delta": new_loyalty - old_loyalty,
         })
 
     # ── 建筑：固定产出 + 固定维护（纯程序化，不调 LLM）─────────────────────────
