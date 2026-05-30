@@ -13,6 +13,7 @@ from ming_sim.exceptions import LLMUnavailable
 from ming_sim.llm_config import (
     is_dashscope_base_url,
     is_deepseek_base_url,
+    is_minimax_base_url,
     provider_extra_body,
     supports_openai_reasoning_effort,
 )
@@ -78,6 +79,8 @@ def create_chat_model(
             extra_body["thinking_budget"] = int(thinking_budget)
     elif enable_thinking and is_deepseek_base_url(llm_config.base_url):
         extra_body = {}  # deepseek-v4 默认深思,清掉 disabled
+    elif enable_thinking and is_minimax_base_url(llm_config.base_url):
+        extra_body = {}  # minimax 默认深思,清掉 extra_body
     kwargs: Dict[str, object] = {
         "id": llm_config.model,
         "api_key": llm_config.api_key,

@@ -28,11 +28,18 @@ def is_dashscope_base_url(base_url: str) -> bool:
     return "dashscope" in base_url.lower() or "aliyuncs" in base_url.lower()
 
 
+def is_minimax_base_url(base_url: str) -> bool:
+    return "minimax" in base_url.lower() or "api.minimax.chat" in base_url.lower()
+
+
 def provider_extra_body(base_url: str) -> Optional[Dict[str, object]]:
     if is_deepseek_base_url(base_url):
         return {"thinking": {"type": "disabled"}}
     if is_dashscope_base_url(base_url):
         return {"enable_thinking": False}
+    if is_minimax_base_url(base_url):
+        # MiniMax 不支持 extra_body，直接返回 None
+        return None
     return None
 
 
