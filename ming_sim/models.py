@@ -88,6 +88,28 @@ class Event:
     ongoing_effects: Dict[str, object] = field(default_factory=dict)
     effect_on_resolve: Dict[str, object] = field(default_factory=dict)
     effect_on_fail: Dict[str, object] = field(default_factory=dict)
+    # ── 事件阶段推进 ──
+    phases: List[EventPhase] = field(default_factory=list)
+    # ── 事件连锁 ──
+    next_on_resolve: List[str] = field(default_factory=list)
+    next_on_fail: List[str] = field(default_factory=list)
+    # ── 事件叙事 ──
+    narrative_intro: str = ""
+    narrative_ongoing: str = ""
+    narrative_resolved: str = ""
+    narrative_failed: str = ""
+
+
+@dataclass
+class EventPhase:
+    """事件的一个阶段——事件不是一次触发就完了，而是分阶段展开。"""
+    id: str                              # 阶段标识，如 "初现" "爆发" "余波"
+    title: str                           # 阶段标题，如 "边关告急"
+    narrative: str                       # 本阶段的叙事描述
+    duration_min: int = 1                # 本阶段最短持续回合数
+    duration_max: int = 3                # 本阶段最长持续回合数
+    advance_condition: str = ""          # 推进至下一阶段的条件描述（空=到时自动推进）
+    choices: List[Dict[str, str]] = field(default_factory=list)  # [{text:"发兵救援", key:"dispatch"}, ...]
 
 
 @dataclass
