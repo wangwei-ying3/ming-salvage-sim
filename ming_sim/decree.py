@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from typing import Callable, Dict, List, Optional
 
@@ -26,8 +27,8 @@ from ming_sim.constants import TURN_UNIT
 from ming_sim.context import victory_status
 from ming_sim.db import GameDB
 from ming_sim.exceptions import LLMContractError, LLMUnavailable
-from ming_sim.flows import apply_fixed_period_flows
-from ming_sim.issues import apply_issue_inertia_and_ongoing, apply_score_extraction, auto_trigger_seed_issues, clear_gated_legacies
+from ming_sim.flows import apply_fixed_period_flows, apply_natural_disasters
+from ming_sim.issues import apply_issue_inertia_and_ongoing, apply_score_extraction, auto_trigger_seed_issues, clear_gated_legacies, advance_event_phases, record_event_narrative
 from ming_sim.llm_model import extract_agent_text, llm_unavailable_from_error
 from ming_sim.models import GameState, LLMConfig
 from ming_sim.memories import (
@@ -156,7 +157,13 @@ def resolve_directives(
     _emit("stage", "固定月度财政入账")
     fixed_flows = apply_fixed_period_flows(db, state)
 
-    # 1.6) 程序硬触发：标了 auto_trigger 的 seed 情势，gate 达标即由程序直接立项，
+    # 1.6) 季度天灾判定
+    try:
+        apply_natural_disasters(db, state)
+    except Exception as exc:
+        tlog(f"[disaster] 跳过：{exc}")
+
+    # 1.7) 程序硬触发：标了 auto_trigger 的 seed 情势，gate 达标即由程序直接立项，
     #      绕过 LLM 因果判定。放在 simulator 前，使硬立的 issue 当回合即进盘面被邸报叙述。
     auto_triggered = auto_trigger_seed_issues(state, db)
     if auto_triggered:
@@ -243,6 +250,12 @@ def resolve_directives(
              + (f" titles={[o['title'] for o in active_orders]}" if active_orders else ""))
     except Exception as exc:
         tlog(f"[secret_order] 注入失败，跳过：{exc}")
+
+    # 1.9) 军事/外交指令程序化结算
+    try:
+        _process_military_diplomacy_directives(db, state, directives_brief)
+    except Exception as exc:
+        tlog(f"[military-diplomacy] 跳过：{exc}")
 
     # 2) 推演 agent: 写邸报
     tlog("结算 2/4 推演 agent（月末邸报）")
@@ -336,6 +349,11 @@ def resolve_directives(
 
     tlog("结算 4/4 落库 + inertia/ongoing")
     _emit("stage", "落库与事项推进")
+    # 机械安全网
+    try:
+        _enforce_directive_mechanics(directives_brief, extracted, content=content)
+    except Exception as exc:
+        tlog(f"[enforce] 跳过：{exc}")
     applied = apply_score_extraction(db, state, extracted, content=content, registry=registry)
 
     # 4) 把 narrative 与诏书写入 turn_logs 作下月前文
@@ -384,6 +402,20 @@ def resolve_directives(
         touched_ids.add(int(adv.get("issue_id") or 0))
     apply_issue_inertia_and_ongoing(db, state, touched_ids=touched_ids)
 
+    # 事件叙事记录
+    try:
+        record_event_narrative(db, state, applied, decree_text=decree_text, narrative=narrative)
+    except Exception as exc:
+        tlog(f"[event-narrative] 跳过：{exc}")
+
+    # 事件阶段推进
+    try:
+        phase_advances = advance_event_phases(db, state)
+        if phase_advances:
+            tlog(f"[event-phase] 阶段推进 {len(phase_advances)} 条")
+    except Exception as exc:
+        tlog(f"[event-phase] 跳过：{exc}")
+
     # 7) 开局负面帝国修正：本月若达成消除条件即清除（程序判定，不靠 LLM/时长）
     cleared = clear_gated_legacies(db, state)
     for name in cleared:
@@ -404,3 +436,187 @@ def resolve_directives(
         ending = f"\n\n【结局】{label}：{outcome.get('summary', '')}"
     full_report = f"\n本{TURN_UNIT}颁布诏书：\n" + decree_text + "\n\n" + narrative + ending
     return full_report
+
+
+# ════════════════════════════════════════════════════════════════
+# 军事/外交指令程序化结算 + 机械安全网
+# ════════════════════════════════════════════════════════════════
+
+def _find_name(text: str, known_names: List[str]) -> Optional[str]:
+    """从文本中匹配已知人物名（长名优先）。"""
+    for name in known_names:
+        if len(name) >= 2 and name in text:
+            return name
+    return None
+
+
+def _process_military_diplomacy_directives(
+    db: GameDB,
+    state: GameState,
+    directives_brief: List[Dict[str, object]],
+) -> None:
+    """军事/外交指令程序化结算：在 LLM 推演前更新军队/外部势力状态。
+    每个类别有固定公式；LLM 在此基础上写叙事。"""
+    armies = {r["id"]: r for r in db.conn.execute("SELECT * FROM armies").fetchall()}
+    army_names: Dict[str, str] = {}
+    for r in armies.values():
+        army_names[r["name"]] = r["id"]
+    powers = {r["id"]: r for r in db.conn.execute("SELECT * FROM powers").fetchall()}
+    power_names: Dict[str, str] = {}
+    for r in powers.values():
+        power_names[r["name"]] = r["id"]
+
+    for d in directives_brief:
+        text = str(d.get("directive_text", ""))
+        if not text.strip():
+            continue
+        category = str(d.get("category", "")).strip()
+        if not category:
+            if re.search(r'出征|出兵|进剿|讨伐|伐金|伐清', text):
+                category = "military_attack"
+            elif re.search(r'防守|守备|固防|戒严', text):
+                category = "military_defend"
+            elif re.search(r'调防|移镇|换防|移兵', text):
+                category = "military_relocate"
+            elif re.search(r'招抚|招安|纳降|收编', text):
+                category = "military_recruit"
+        if not category:
+            if re.search(r'遣使|出使|借兵|请援', text):
+                category = "diplomacy_envoy"
+            elif re.search(r'议和|和谈|讲和', text):
+                category = "diplomacy_peace"
+            elif re.search(r'联姻|和亲|下嫁', text):
+                category = "diplomacy_marriage"
+            elif re.search(r'册封|封贡|封王', text):
+                category = "diplomacy_invest"
+        if not category:
+            continue
+        d["category"] = category
+        target_army = None
+        for name, aid in army_names.items():
+            if name in text:
+                target_army = armies[aid]
+                break
+        target_power = None
+        for name, pid in power_names.items():
+            if name in text:
+                target_power = powers[pid]
+                break
+        if category == "military_attack" and target_army:
+            db.apply_army_deltas(state, None, None, "兵部·出征", {
+                target_army["id"]: {"supply": -15, "morale": -5, "mobility": -10},
+            })
+            db.record_issue_economy_move(state, "国库", -12, "行军支饷", text[:40])
+        elif category == "military_defend" and target_army:
+            db.apply_army_deltas(state, None, None, "兵部·防守", {
+                target_army["id"]: {"morale": 5, "equipment": -3},
+            })
+            db.record_issue_economy_move(state, "国库", -5, "防务调拨", text[:40])
+        elif category == "military_relocate" and target_army:
+            db.apply_army_deltas(state, None, None, "兵部·调防", {
+                target_army["id"]: {"mobility": -10, "supply": -8},
+            })
+            db.record_issue_economy_move(state, "国库", -8, "移镇转运", text[:40])
+        elif category == "military_recruit" and target_army:
+            db.apply_army_deltas(state, None, None, "兵部·招抚", {
+                target_army["id"]: {"manpower": 3000, "morale": -3},
+            })
+            db.record_issue_economy_move(state, "国库", -6, "招抚安插", text[:40])
+        elif category == "diplomacy_envoy" and target_power:
+            db.conn.execute(
+                "UPDATE powers SET leverage = MAX(0, MIN(100, leverage + 5)), "
+                "last_action = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (f"明廷遣使：{text[:30]}", target_power["id"]),
+            )
+            db.conn.commit()
+            db.record_issue_economy_move(state, "国库", -3, "使节支费", text[:40])
+        elif category == "diplomacy_peace" and target_power:
+            db.conn.execute(
+                "UPDATE powers SET satisfaction = MAX(0, MIN(100, satisfaction + 10)), "
+                "stance = '谈判中', last_action = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (f"明廷议和：{text[:30]}", target_power["id"]),
+            )
+            db.conn.commit()
+            state.metrics["皇威"] = max(0, int(state.metrics.get("皇威", 0)) - 3)
+            db.record_issue_economy_move(state, "国库", -5, "议和犒赏", text[:40])
+        elif category == "diplomacy_marriage" and target_power:
+            db.conn.execute(
+                "UPDATE powers SET stance = '摇摆', satisfaction = MAX(0, MIN(100, satisfaction + 15)), "
+                "leverage = MAX(0, MIN(100, leverage + 8)), last_action = ?, "
+                "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (f"明廷联姻：{text[:30]}", target_power["id"]),
+            )
+            db.conn.commit()
+            db.record_issue_economy_move(state, "国库", -10, "和亲嫁妆", text[:40])
+        elif category == "diplomacy_invest" and target_power:
+            db.conn.execute(
+                "UPDATE powers SET satisfaction = MAX(0, MIN(100, satisfaction + 8)), "
+                "leverage = MAX(0, MIN(100, leverage + 3)), last_action = ?, "
+                "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (f"明廷册封：{text[:30]}", target_power["id"]),
+            )
+            db.conn.commit()
+            state.metrics["皇威"] = min(100, int(state.metrics.get("皇威", 0)) + 2)
+
+
+def _enforce_directive_mechanics(
+    directives_brief: List[Dict[str, object]],
+    extracted: Dict[str, object],
+    content=None,
+) -> None:
+    """机械安全网：一锤子指令（抄家/罢官/下狱）不被 LLM 遗漏。"""
+    if not directives_brief:
+        return
+    known_names: List[str] = []
+    if content is not None:
+        known_names = sorted(getattr(content, "characters", {}).keys(),
+                             key=lambda n: -len(n))
+    for d in directives_brief:
+        text = str(d.get("directive_text", ""))
+        if not text.strip():
+            continue
+        if re.search(r'抄家|查抄|籍没|抄没|罚没|没入', text):
+            existing = [
+                m for m in extracted.get("economy_moves", [])
+                if isinstance(m, dict) and ("抄" in str(m.get("reason", "")) or m.get("category") == "查抄")
+            ]
+            if not existing:
+                extracted.setdefault("economy_moves", []).append({
+                    "account": "国库", "delta": 20, "category": "查抄",
+                    "reason": "诏命查抄入官",
+                })
+            has_status = any(
+                isinstance(s, dict) and s.get("status") in ("imprisoned", "dead")
+                for s in extracted.get("character_status_changes", [])
+            )
+            if not has_status:
+                target = _find_name(text, known_names)
+                if target:
+                    extracted.setdefault("character_status_changes", []).append({
+                        "name": target, "status": "imprisoned",
+                        "reason": "诏命查抄下狱",
+                    })
+        if re.search(r'罢官|革职|削籍|罢黜|免官|夺职|去职', text):
+            has_dismiss = any(
+                isinstance(s, dict) and s.get("status") == "dismissed"
+                for s in extracted.get("character_status_changes", [])
+            )
+            if not has_dismiss:
+                target = _find_name(text, known_names)
+                if target:
+                    extracted.setdefault("character_status_changes", []).append({
+                        "name": target, "status": "dismissed",
+                        "reason": "诏命罢黜",
+                    })
+        if re.search(r'下狱|拿问|逮问|缉拿|拿下|收监', text):
+            has_imprison = any(
+                isinstance(s, dict) and s.get("status") == "imprisoned"
+                for s in extracted.get("character_status_changes", [])
+            )
+            if not has_imprison:
+                target = _find_name(text, known_names)
+                if target:
+                    extracted.setdefault("character_status_changes", []).append({
+                        "name": target, "status": "imprisoned",
+                        "reason": "诏命缉拿下狱",
+                    })

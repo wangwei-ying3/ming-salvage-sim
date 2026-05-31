@@ -32,7 +32,7 @@ from ming_sim.llm_config import (
 )
 from ming_sim.llm_model import extract_agent_text, verify_llm_available
 from ming_sim.llm_contract import fail_if_llm_error
-from ming_sim.issues import _format_issue_ongoing
+from ming_sim.issues import _format_issue_ongoing, get_event_inbox
 from ming_sim.session import GameSession
 from ming_sim.session import AUTO_SAVE_PREFIX
 from ming_sim.skills import available_skill_ids, skill_display_name, skill_source_labels
@@ -673,7 +673,7 @@ class WebGame:
             "power_warning": self.db.power_report(exclude_self=True),
             "powers": self.db.power_payload(),
             "victory_status": self.session.victory(),
-            "events": [],
+            "event_inbox": get_event_inbox(self.db),
             "regions": self.db.region_payload(),
             "armies": self.db.army_payload(),
             "map_nodes": self.map_nodes(),
@@ -1149,6 +1149,11 @@ app.add_middleware(
 @app.get("/api/game/state")
 async def api_state() -> Dict[str, Any]:
     return get_game().state_payload()
+
+
+@app.get("/api/event/inbox")
+async def api_event_inbox(limit: int = 20) -> Dict[str, Any]:
+    return {"events": get_event_inbox(get_game().db, limit=limit)}
 
 
 @app.get("/api/secret_orders")

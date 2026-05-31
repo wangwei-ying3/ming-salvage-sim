@@ -25,7 +25,7 @@ from ming_sim.flows import (
     _apply_faction_dict,
     _apply_metric_dict,
 )
-from ming_sim.models import Event, GameState
+from ming_sim.models import Event, EventPhase, GameState
 
 _content: Optional[GameContent] = None
 
@@ -1467,3 +1467,108 @@ def sync_opening_legacies(db: GameDB, state: GameState) -> None:
                 clear_gate=leg.clear_gate,
                 legacy_key=leg.key,
             )
+
+
+# ════════════════════════════════════════════════════════════════
+# 事件阶段推进 + 叙事收件箱
+# ════════════════════════════════════════════════════════════════
+
+def advance_event_phases(db, state):
+    """检查 active issue 是否有预设阶段需要推进。"""
+    c = _ctx()
+    active = db.list_active_issues()
+    advanced = []
+    for row in active:
+        origin_ref = str(row["origin_ref"] or "")
+        if not origin_ref:
+            continue
+        ev = c.event_by_id.get(origin_ref)
+        if ev is None or not ev.phases:
+            continue
+        try:
+            current_idx = int(str(row["phase"] or "0"))
+        except (TypeError, ValueError):
+            current_idx = 0
+        if current_idx >= len(ev.phases) - 1:
+            continue
+        last_advance = int(row["last_advance_turn"] or 0)
+        turns_in_phase = state.turn - last_advance
+        current_phase = ev.phases[current_idx]
+        if turns_in_phase < current_phase.duration_min:
+            continue
+        if turns_in_phase < current_phase.duration_max and current_phase.advance_condition:
+            continue
+        next_idx = current_idx + 1
+        next_phase = ev.phases[next_idx]
+        phase_label = str(next_phase.title or next_phase.id)
+        narrative = str(next_phase.narrative or "")
+        db.conn.execute(
+            "UPDATE issues SET phase=?, stage_text=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (str(next_idx), narrative[:200] if narrative else phase_label, int(row["id"])),
+        )
+        db.conn.commit()
+        db.advance_issue(
+            state, int(row["id"]),
+            trigger_kind="phase",
+            delta_bar=0,
+            stage_text=narrative[:200] or phase_label,
+            narrative=f"事件推进至「{phase_label}」：{narrative}" if narrative else f"事件推进至「{phase_label}」",
+            metric_delta={},
+        )
+        advanced.append({"issue_id": int(row["id"]), "title": str(row["title"]),
+                         "phase_from": str(current_idx), "phase_to": str(next_idx),
+                         "phase_label": phase_label, "narrative": narrative})
+    return advanced
+
+
+def record_event_narrative(db, state, applied, decree_text="", narrative=""):
+    """将本回合事件变化写入 event_narratives 表。"""
+    db.conn.execute("""
+        CREATE TABLE IF NOT EXISTS event_narratives (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            turn INTEGER NOT NULL, year INTEGER NOT NULL, period INTEGER NOT NULL,
+            kind TEXT NOT NULL DEFAULT 'system', title TEXT NOT NULL DEFAULT '',
+            narrative TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT '',
+            ref_id TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    issue_summary = applied.get("issue_summary") or {}
+    for ni in issue_summary.get("new_issues", []):
+        if ni.get("rejected"):
+            continue
+        title = str(ni.get("title") or "")
+        db.conn.execute(
+            "INSERT INTO event_narratives (turn, year, period, kind, title, narrative) VALUES (?, ?, ?, 'new_issue', ?, ?)",
+            (state.turn, state.year, state.period, title, f"新局势：{title}"),
+        )
+    for cl in issue_summary.get("closes", []):
+        title = str(cl.get("title") or "")
+        reason = str(cl.get("reason") or "resolved")
+        label = "已结案" if reason == "resolved" else "已崩坏"
+        narrative_text = str(cl.get("narrative") or "")
+        db.conn.execute(
+            "INSERT INTO event_narratives (turn, year, period, kind, title, narrative) VALUES (?, ?, ?, 'close_issue', ?, ?)",
+            (state.turn, state.year, state.period, title, f"{label}：{narrative_text}"),
+        )
+    db.conn.commit()
+
+
+def get_event_inbox(db, limit=20):
+    """获取事件叙事收件箱。"""
+    db.conn.execute("""
+        CREATE TABLE IF NOT EXISTS event_narratives (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            turn INTEGER NOT NULL, year INTEGER NOT NULL, period INTEGER NOT NULL,
+            kind TEXT NOT NULL DEFAULT 'system', title TEXT NOT NULL DEFAULT '',
+            narrative TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT '',
+            ref_id TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    rows = db.conn.execute(
+        "SELECT * FROM event_narratives ORDER BY id DESC LIMIT ?", (limit,)
+    ).fetchall()
+    return [{
+        "id": int(r["id"]), "turn": int(r["turn"]), "year": int(r["year"]),
+        "period": int(r["period"]), "kind": str(r["kind"]), "title": str(r["title"]),
+        "narrative": str(r["narrative"]), "source": str(r["source"]),
+    } for r in rows]

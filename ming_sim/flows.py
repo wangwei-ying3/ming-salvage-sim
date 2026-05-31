@@ -574,3 +574,76 @@ def _apply_class_dict(db: GameDB, class_delta: Dict[str, object]) -> Dict[str, D
     if cleaned:
         db.adjust_classes(cleaned)
     return cleaned
+
+
+# ════════════════════════════════════════════════════════════════
+# 季度天灾系统
+# ════════════════════════════════════════════════════════════════
+
+_quarter_triggered: set = set()
+_last_quarter: int = -1
+
+
+def _season_pool_for_quarter(q: int) -> list:
+    """返回季度的灾害池：[(名称, grain_security_delta, unrest_delta, pop_delta), ...]"""
+    if q == 0:    # 春
+        return [("洪涝", -18, 8, -2), ("蝗灾", -22, 12, -2)]
+    elif q == 1:  # 夏
+        return [("洪涝", -18, 8, -2), ("瘟疫", -5, 5, -2), ("蝗灾", -22, 12, -2)]
+    elif q == 2:  # 秋
+        return [("旱灾", -12, 8, -1), ("蝗灾", -18, 10, -2)]
+    else:          # 冬
+        return [("雪灾", -10, 5, -1), ("旱灾", -12, 8, -1)]
+
+
+def apply_natural_disasters(db: GameDB, state: GameState) -> None:
+    """季度天灾系统：每月判定，同季度同名天灾不重复，季度切换自动清除。"""
+    import random
+    global _quarter_triggered, _last_quarter
+    month = int(state.period)
+    q = (month - 3) // 3 if month >= 3 else 3
+    if q != _last_quarter:
+        db.conn.execute("UPDATE regions SET natural_disaster = ''")
+        db.conn.commit()
+        _quarter_triggered.clear()
+        _last_quarter = q
+    pool = [(d, g, u, p) for d, g, u, p in _season_pool_for_quarter(q)
+            if d not in _quarter_triggered]
+    if not pool:
+        return
+    if random.random() > 0.20:
+        return
+    dtype, grain_delta, unrest_delta, pop_delta = random.choice(pool)
+    _quarter_triggered.add(dtype)
+    rows = db.conn.execute("SELECT id, name FROM regions").fetchall()
+    if not rows:
+        return
+    high_risk = {"shaanxi", "shanxi", "henan", "beizhili", "shandong"}
+    region_ids = [str(r["id"]) for r in rows]
+    probs = [3.0 if rid in high_risk else 1.0 for rid in region_ids]
+    total = sum(probs)
+    if total <= 0:
+        return
+    r = random.uniform(0, total)
+    cumulative = 0.0
+    chosen_rid = region_ids[0]
+    for i, p in enumerate(probs):
+        cumulative += p
+        if r <= cumulative:
+            chosen_rid = region_ids[i]
+            break
+    row = db.conn.execute("SELECT * FROM regions WHERE id=?", (chosen_rid,)).fetchone()
+    if not row:
+        return
+    db.conn.execute(
+        "UPDATE regions SET natural_disaster = ?, grain_security = MAX(0, grain_security + ?), "
+        "unrest = unrest + ? WHERE id = ?",
+        (dtype, grain_delta, unrest_delta, chosen_rid),
+    )
+    if pop_delta:
+        db.conn.execute(
+            "UPDATE regions SET population = MAX(0, population + ?) WHERE id = ?",
+            (pop_delta, chosen_rid),
+        )
+    db.conn.commit()
+    db.record_log(state, f"天灾预警：{row['name']}发生{dtype}，粮产受损，民心浮动。")

@@ -139,6 +139,17 @@ type EventItem = {
   audiences: string[];
 };
 
+type EventNarrativeItem = {
+  id: number;
+  turn: number;
+  year: number;
+  period: number;
+  kind: string;
+  title: string;
+  narrative: string;
+  source: string;
+};
+
 type Directive = {
   id: number;
   event_id: string;
@@ -241,6 +252,7 @@ type GameState = {
   powers: Power[];
   victory_status: { status: string; summary: string };
   events: EventItem[];
+  event_inbox?: EventNarrativeItem[];
   regions: Region[];
   armies: Army[];
   map_nodes: MapNode[];
@@ -1159,6 +1171,7 @@ function App() {
       />
 
       <SituationPanel issues={state.issues} closedIssues={state.closed_this_turn || []} />
+      <EventInboxPanel events={state.event_inbox || []} />
 
       {mapIntelOpen && selectedNode ? (
         <section className="map-intel-panel overlay-panel" style={mapIntelStyle}>
@@ -3717,6 +3730,36 @@ function SituationPanel({ issues, closedIssues }: { issues: Issue[]; closedIssue
           </div>
         </div>
       ) : null)}
+    </aside>
+  );
+}
+
+function EventInboxPanel({ events }: { events: EventNarrativeItem[] }) {
+  const [collapsed, setCollapsed] = React.useState(false);
+  if (!events.length) return null;
+  const recent = events.slice(0, 10);
+  return (
+    <aside className={`situation-panel ${collapsed ? "collapsed" : ""}`} aria-label="事件收件箱" style={{ marginTop: 8 }}>
+      <div className="situation-panel-title">
+        <span>事件录</span>
+        <button type="button" className="situation-toggle"
+          aria-label={collapsed ? "展开事件录" : "收起事件录"}
+          onClick={() => setCollapsed((c) => !c)}
+        >{collapsed ? "+" : "−"}</button>
+      </div>
+      {!collapsed && (
+        <div className="situation-list" style={{ maxHeight: 320, overflowY: "auto" }}>
+          {recent.map((ev) => (
+            <div key={ev.id} className="situation-closed-row" tabIndex={0} style={{ padding: "4px 8px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ fontSize: 12, color: "var(--color-muted)", marginBottom: 2 }}>
+                {ev.year}.{String(ev.period).padStart(2, "0")}  {ev.kind === "new_issue" ? "新局势" : ev.kind === "close_issue" ? "结案" : "记事"}
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{ev.title}</div>
+              <div style={{ fontSize: 12, color: "var(--color-muted)", lineHeight: 1.4 }}>{ev.narrative}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </aside>
   );
 }
