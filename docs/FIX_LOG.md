@@ -1,5 +1,10 @@
 ## 2026-06-24
 
+- Goal 5 aligned Python dependency and test configuration without changing gameplay, business logic, frontend UI, or LLM behavior: added `python-multipart>=0.0.20` to `requirements.txt`, added minimal `requirements-dev.txt` with `pytest`, and added `python_files = test_*.py` to `pytest.ini`.
+- Confirmed `web_app.py` uses FastAPI upload handling via `UploadFile = File(...)`, so `python-multipart` is a runtime dependency rather than only a test dependency.
+- Goal 5 Python-only convergence confirmed dependency declarations: `pip install -r requirements.txt`, `pip install -r requirements-dev.txt`, and `pip check` all passed. `pytest -q` passed with `49 passed, 1 warning`.
+- Goal 5 remains PARTIAL only because filtered `compileall` still hits local WinError 5 cache permissions on `.pytest_cache` and `tests\__pycache__`; no additional dependency or pytest config change is indicated.
+- Goal 5 verification is PARTIAL: `.\.venv\Scripts\python.exe -m pytest -q` passed with `49 passed, 1 warning`; exact `.\.venv\Scripts\python.exe -m compileall .` failed on access-restricted generated/dependency paths; `scripts\verify_local.ps1` passed Python compile and pytest phases but failed at frontend build with recurring Vite/esbuild `spawn EPERM`.
 - User manual re-verification confirmed the full local gate now passes: `cd web && npm run build` PASS, root `scripts\verify_local.ps1` PASS, Python compileall PASS, pytest PASS with `49 passed`, frontend build PASS, and local verification completed.
 - Confirmed the previous Vite/esbuild `spawn EPERM` condition has cleared and no longer blocks the project.
 - Confirmed the Markdown bold renderer review has passed.

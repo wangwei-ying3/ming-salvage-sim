@@ -448,3 +448,110 @@
 - `docs/AGENT_PROGRESS.md`
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
+
+## Session 2026-06-24 16:05 Local
+
+### Goal
+- Goal 5: confirm Python runtime/test dependency declarations and pytest discovery configuration, without changing business logic, gameplay, frontend UI, or LLM behavior.
+
+### What I inspected
+- `requirements.txt`
+- `requirements-dev.txt`
+- `pytest.ini`
+- `web_app.py` upload route usage
+- `scripts/verify_local.ps1`
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
+### Bugs found
+- [Medium] `requirements.txt`: missing explicit `python-multipart` runtime dependency even though `web_app.py` uses `UploadFile = File(...)`.
+- [Low] Repository root: `requirements-dev.txt` was missing, so test-only dependencies were not declared separately.
+- [Low] `pytest.ini`: missing `python_files = test_*.py`.
+- [Low] Local workspace: exact `compileall .` scans generated/dependency directories and fails on access-restricted `.pytest_cache` / `web\node_modules` paths.
+- [Medium] Local frontend environment: `scripts\verify_local.ps1` still fails at Vite/esbuild frontend build with `Error: spawn EPERM`.
+
+### Changes made
+- `requirements.txt`: added `python-multipart>=0.0.20`.
+- `requirements-dev.txt`: added minimal dev dependency declaration with `pytest`.
+- `pytest.ini`: added `python_files = test_*.py` while keeping `testpaths = tests`.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, `docs/FIX_LOG.md`: recorded Goal 5 findings, changes, verification, and remaining environment blockers.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `git status --short` | PASS | Initial status was clean. |
+| `rg -n "UploadFile|File\(|Form\(|multipart" web_app.py server_backend.py ming_sim tests` | PASS | Found `web_app.py` import and `UploadFile = File(...)` route usage. |
+| `.\.venv\Scripts\python.exe -m compileall .` | FAIL | Failed on local access-restricted generated/dependency paths, including `.pytest_cache` and Python files under `web\node_modules`. |
+| `.\.venv\Scripts\python.exe -m pytest -q` | PASS | `49 passed, 1 warning`; warning is the known `.pytest_cache` access issue. |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_local.ps1` | FAIL | Python compile and pytest phases passed; frontend build failed with Vite/esbuild `spawn EPERM`. |
+| `.\.venv\Scripts\python.exe -m pip show python-multipart` | PASS | Installed version is `0.0.32`; declaration was missing before this pass. |
+| `git diff -- requirements.txt requirements-dev.txt pytest.ini` | PASS | Reviewed scoped config diff. |
+
+### Current status
+- PARTIAL: Goal 5 config consistency changes are complete and Python tests pass, but the requested full verification gate is blocked by local environment/frontend issues.
+
+### Remaining blockers
+- Exact `compileall .` fails in this workspace because it scans access-restricted generated/dependency paths; `scripts\verify_local.ps1` uses exclusions and passed its Python compile phase.
+- Vite/esbuild `spawn EPERM` recurred during `scripts\verify_local.ps1` frontend build.
+- Pytest still reports the non-blocking `.pytest_cache` warning.
+
+### Next recommended action
+- Resolve the local Windows permission issue affecting esbuild and generated cache paths, then rerun the three Goal 5 verification commands.
+
+### Files changed this session
+- `requirements.txt`
+- `requirements-dev.txt`
+- `pytest.ini`
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
+## Session 2026-06-24 16:10 Local
+
+### Goal
+- Goal 5 convergence: run Python-only dependency and test configuration checks, without changing business source, frontend source, `web/src/components/modals.tsx`, `ming_sim/**`, `web_app.py`, DeepSeek, upload, or save logic.
+
+### What I inspected
+- `requirements.txt`
+- `requirements-dev.txt`
+- `pytest.ini`
+- `.pytest_cache`
+- `tests\__pycache__`
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
+### Bugs found
+- [Low] Local cache permissions: filtered `compileall` cannot list `.pytest_cache` and cannot replace `.pyc` files under `tests\__pycache__`, returning WinError 5.
+- [Low] Local pip cleanup: pip install commands complete successfully but cannot remove some temporary directories under `C:\Users\Lenovo\AppData\Local\Temp`.
+
+### Changes made
+- No source, frontend, gameplay, LLM, upload, or save logic changes.
+- No additional dependency or pytest config changes were needed; Goal 5 declarations remain complete.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: recorded Python-only verification results and remaining local cache blocker.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` | PASS | All requirements already satisfied, including `python-multipart 0.0.32`; pip temp cleanup warnings only. |
+| `.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt` | PASS | `pytest 9.1.1` already satisfied; pip temp cleanup warnings only. |
+| `.\.venv\Scripts\python.exe -m pip check` | PASS | `No broken requirements found.` |
+| `.\.venv\Scripts\python.exe -m compileall -q -x '(\\|/)(\.venv|node_modules|web(\\|/)dist|\.pytest_cache|__pycache__|data|scripts(\\|/)runs)(\\|/)' .` | FAIL | Could not list `.pytest_cache`; WinError 5 replacing `.pyc` files in `tests\__pycache__`. |
+| `.\.venv\Scripts\python.exe -m pytest -q` | PASS | `49 passed, 1 warning`; warning is the known `.pytest_cache` write denial. |
+| `Get-Item -Force .pytest_cache,tests\__pycache__` | PASS | Both cache directories exist as local directories, but compile/test cache writes are denied. |
+
+### Current status
+- PARTIAL: Python dependency and pytest configuration are complete, `pip check` passes, and tests pass. The remaining blocker is local filesystem permission denial on cache/pycache paths during compile/cache writes.
+
+### Remaining blockers
+- Local WinError 5 on `.pytest_cache` and `tests\__pycache__` prevents the requested filtered compileall command from passing.
+- Pytest still passes but reports the known `.pytest_cache` warning.
+
+### Next recommended action
+- Clear or recreate `.pytest_cache` and `tests\__pycache__` with normal user permissions, then rerun the Python-only verification commands.
+
+### Files changed this session
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
