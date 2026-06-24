@@ -1,5 +1,13 @@
 ## 2026-06-24
 
+- Goal 7B removed all `/bg_ending.webp` CSS references from `web/src/styles.css` without adding a replacement image. The affected ending background blocks already had dark gradient fallback layers, which are now the only backgrounds used there.
+- Confirmed Goal 7B searches are clean: `Select-String` found no remaining `bg_ending` or `/bg_ending.webp` references under `web`.
+- Goal 7B build verification remains blocked by local Vite/esbuild `spawn EPERM`; the full `scripts\verify_local.ps1` gate reached Python tests successfully (`49 passed, 1 warning`) before failing at the same frontend build environment blocker.
+- Goal 7 classified the `/bg_ending.webp` warning: the CSS public-root path itself is valid for Vite, but the target asset is missing from `web/public/` and no same-named asset exists under `web`. No image was downloaded or added; this remains a project asset follow-up.
+- Goal 7 build verification is blocked by the existing local Vite/esbuild `spawn EPERM` failure before asset resolution, so `npm run build` could not confirm the post-classification warning state.
+- Goal 6 backend smoke test now passes: `scripts\verify_local.ps1 -Smoke` checks the Python 3.12 venv, starts uvicorn for `web_app:app` on `127.0.0.1:8010`, confirms the backend is listening, and stops the process in `finally`.
+- Fixed `scripts\verify_local.ps1 -Smoke` so it no longer runs compileall, pytest, or frontend build before the backend smoke test. This keeps Goal 6 independent from the known local Vite/esbuild `spawn EPERM` environment blocker.
+- Confirmed the Goal 6 smoke path did not call a real LLM API or API-key-dependent route; it performed a TCP listening check only, and uvicorn logs showed application startup completed.
 - Goal 5 aligned Python dependency and test configuration without changing gameplay, business logic, frontend UI, or LLM behavior: added `python-multipart>=0.0.20` to `requirements.txt`, added minimal `requirements-dev.txt` with `pytest`, and added `python_files = test_*.py` to `pytest.ini`.
 - Confirmed `web_app.py` uses FastAPI upload handling via `UploadFile = File(...)`, so `python-multipart` is a runtime dependency rather than only a test dependency.
 - Goal 5 Python-only convergence confirmed dependency declarations: `pip install -r requirements.txt`, `pip install -r requirements-dev.txt`, and `pip check` all passed. `pytest -q` passed with `49 passed, 1 warning`.

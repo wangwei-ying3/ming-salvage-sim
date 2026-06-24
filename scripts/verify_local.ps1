@@ -124,33 +124,35 @@ if ($Install) {
     }
 }
 
-Write-Stage "Compile Python sources"
-$PycachePrefix = Join-Path $env:TEMP "ming_verify_pycache"
-New-Item -ItemType Directory -Force -Path $PycachePrefix | Out-Null
-$env:PYTHONPYCACHEPREFIX = $PycachePrefix
-$CompileExclude = "(^|[\\/])(\.git|\.venv|\.pytest_cache|__pycache__|node_modules|data|logs|scripts[\\/]runs|web[\\/]node_modules|web[\\/]dist)([\\/]|$)|(^|[\\/])tmp[^\\/]*([\\/]|$)"
-Invoke-Native $Python @(
-    "-m", "compileall", "-q", "-x", $CompileExclude,
-    "ming_sim", "server", "tests", "scripts",
-    "web_app.py", "server_backend.py", "main.py", "launcher.py"
-)
+if (-not $Smoke) {
+    Write-Stage "Compile Python sources"
+    $PycachePrefix = Join-Path $env:TEMP "ming_verify_pycache"
+    New-Item -ItemType Directory -Force -Path $PycachePrefix | Out-Null
+    $env:PYTHONPYCACHEPREFIX = $PycachePrefix
+    $CompileExclude = "(^|[\\/])(\.git|\.venv|\.pytest_cache|__pycache__|node_modules|data|logs|scripts[\\/]runs|web[\\/]node_modules|web[\\/]dist)([\\/]|$)|(^|[\\/])tmp[^\\/]*([\\/]|$)"
+    Invoke-Native $Python @(
+        "-m", "compileall", "-q", "-x", $CompileExclude,
+        "ming_sim", "server", "tests", "scripts",
+        "web_app.py", "server_backend.py", "main.py", "launcher.py"
+    )
 
-Write-Stage "Run Python tests"
-Invoke-Native $Python @("-m", "pytest", "-q")
+    Write-Stage "Run Python tests"
+    Invoke-Native $Python @("-m", "pytest", "-q")
 
-Write-Stage "Build frontend"
-if (Test-FrontendTools) {
-    Push-Location $WebDir
-    try {
-        Invoke-Native "npm" @("run", "build")
+    Write-Stage "Build frontend"
+    if (Test-FrontendTools) {
+        Push-Location $WebDir
+        try {
+            Invoke-Native "npm" @("run", "build")
+        }
+        finally {
+            Pop-Location
+        }
     }
-    finally {
-        Pop-Location
+    else {
+        Write-Host "Frontend dependencies are incomplete. Run scripts\verify_local.ps1 -Install"
+        Write-Host "Skipping frontend build."
     }
-}
-else {
-    Write-Host "Frontend dependencies are incomplete. Run scripts\verify_local.ps1 -Install"
-    Write-Host "Skipping frontend build."
 }
 
 if ($Smoke) {

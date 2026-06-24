@@ -2,7 +2,6 @@
 
 - [Medium] ENV_BLOCKER_INTERMITTENT frontend build recurrence: `scripts\verify_local.ps1` failed during frontend build while Vite loaded `vite.config.ts`, raising esbuild `Error: spawn EPERM`. Python compile and pytest phases in the script passed.
 - [Low] ENV_BLOCKER Python compile cache permissions: exact `compileall .` scans access-restricted generated/dependency paths, and the Python-only filtered compileall command still fails because `.pytest_cache` cannot be listed and `.pyc` files under `tests\__pycache__` cannot be replaced. This is local WinError 5 cache/pycache permissions, not a dependency declaration failure.
-- [Low] Frontend build warning: Vite previously reported `/bg_ending.webp` referenced in `/bg_ending.webp` did not resolve at build time. Warning remains a follow-up item after the build environment is stable.
 - [Low] Frontend build warning: Vite previously reported some chunks are larger than 500 kB after minification. Warning remains a follow-up item after the build environment is stable.
 - [Low] ENV_BLOCKER workspace cleanup: ignored local files `.pytest.ini.swp` and `pytest_probe.db` remain on disk but return `Access is denied` when deleted. They are ignored and do not appear in `git status --short`.
 - [Low] Workspace cleanup: remove inaccessible root-level `tmp*` directories and `pytest_probe.db-journal` created by local SQLite file probes. Attempts to delete them from this session returned access denied or were blocked by tool policy.
@@ -10,6 +9,8 @@
 
 ## Resolved
 
+- [Low] Frontend missing asset reference: `web/src/styles.css` no longer references `/bg_ending.webp`; the three ending background declarations now use their existing dark gradient fallbacks only, and searches for `bg_ending` and `/bg_ending.webp` return no matches.
+- [Medium] Goal 6 smoke-mode gating: `scripts\verify_local.ps1 -Smoke` previously ran compile/test/frontend build before uvicorn, so the local Vite/esbuild `spawn EPERM` environment blocker prevented backend smoke from running. Resolved by making `-Smoke` skip the unrelated full gate and run only the backend startup/listening/cleanup check after the venv check.
 - [Medium] Python runtime dependency declaration: `requirements.txt` now includes `python-multipart`, required by FastAPI `UploadFile = File(...)` routes in `web_app.py`.
 - [Low] Python test dependency declaration: added `requirements-dev.txt` with `pytest`.
 - [Low] Pytest discovery configuration: `pytest.ini` now declares both `testpaths = tests` and `python_files = test_*.py`.

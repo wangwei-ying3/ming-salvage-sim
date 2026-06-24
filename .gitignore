@@ -66,3 +66,5 @@ output/imagegen/bg_ending.png
 output/imagegen/ending_timeline_scroll.png
 web/public/bg_ending.webp
 web/public/ending_timeline_scroll.webp
+
+pytest-cache-files-*/
