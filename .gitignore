@@ -62,9 +62,7 @@ web/tsconfig.tsbuildinfo
 
 # Portrait local backups (rembg 抠图前的 RGB 原图，git 历史里有，无需入库)
 web/public/portraits/_backup_rgb/
-output/imagegen/bg_ending.png
 output/imagegen/ending_timeline_scroll.png
-web/public/bg_ending.webp
 web/public/ending_timeline_scroll.webp
 
 pytest-cache-files-*/

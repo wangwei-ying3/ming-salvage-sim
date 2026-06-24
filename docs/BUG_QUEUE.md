@@ -1,6 +1,6 @@
 ## Open
 
-- [Medium] ENV_BLOCKER_INTERMITTENT frontend build recurrence: `scripts\verify_local.ps1` failed during frontend build while Vite loaded `vite.config.ts`, raising esbuild `Error: spawn EPERM`. Python compile and pytest phases in the script passed.
+- [Medium] ENV_BLOCKER_INTERMITTENT frontend build recurrence: Goal 7B final recheck still fails during frontend build while Vite loads `vite.config.ts`, raising esbuild `Error: spawn EPERM`. `scripts\verify_local.ps1` passed the Python venv, compile, and pytest phases (`49 passed, 1 warning`) before failing at the same frontend build step.
 - [Low] ENV_BLOCKER Python compile cache permissions: exact `compileall .` scans access-restricted generated/dependency paths, and the Python-only filtered compileall command still fails because `.pytest_cache` cannot be listed and `.pyc` files under `tests\__pycache__` cannot be replaced. This is local WinError 5 cache/pycache permissions, not a dependency declaration failure.
 - [Low] Frontend build warning: Vite previously reported some chunks are larger than 500 kB after minification. Warning remains a follow-up item after the build environment is stable.
 - [Low] ENV_BLOCKER workspace cleanup: ignored local files `.pytest.ini.swp` and `pytest_probe.db` remain on disk but return `Access is denied` when deleted. They are ignored and do not appear in `git status --short`.
@@ -9,7 +9,8 @@
 
 ## Resolved
 
-- [Low] Frontend missing asset reference: `web/src/styles.css` no longer references `/bg_ending.webp`; the three ending background declarations now use their existing dark gradient fallbacks only, and searches for `bg_ending` and `/bg_ending.webp` return no matches.
+- [Low] Frontend missing asset reference: `web/src/styles.css` no longer references `/bg_ending.webp`; the three ending background declarations now use their existing dark gradient fallbacks only, and searches for `bg_ending` and `/bg_ending.webp` return no matches. Goal 7B final recheck did not find any residual CSS reference.
+- [Low] `.gitignore` bg_ending cleanup: removed obsolete `output/imagegen/bg_ending.png` and `web/public/bg_ending.webp` ignore rules so any future restored ending asset can be tracked normally.
 - [Medium] Goal 6 smoke-mode gating: `scripts\verify_local.ps1 -Smoke` previously ran compile/test/frontend build before uvicorn, so the local Vite/esbuild `spawn EPERM` environment blocker prevented backend smoke from running. Resolved by making `-Smoke` skip the unrelated full gate and run only the backend startup/listening/cleanup check after the venv check.
 - [Medium] Python runtime dependency declaration: `requirements.txt` now includes `python-multipart`, required by FastAPI `UploadFile = File(...)` routes in `web_app.py`.
 - [Low] Python test dependency declaration: added `requirements-dev.txt` with `pytest`.

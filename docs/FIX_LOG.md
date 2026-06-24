@@ -3,6 +3,8 @@
 - Goal 7B removed all `/bg_ending.webp` CSS references from `web/src/styles.css` without adding a replacement image. The affected ending background blocks already had dark gradient fallback layers, which are now the only backgrounds used there.
 - Confirmed Goal 7B searches are clean: `Select-String` found no remaining `bg_ending` or `/bg_ending.webp` references under `web`.
 - Goal 7B build verification remains blocked by local Vite/esbuild `spawn EPERM`; the full `scripts\verify_local.ps1` gate reached Python tests successfully (`49 passed, 1 warning`) before failing at the same frontend build environment blocker.
+- Goal 7B final recheck made no source changes: direct `npm run build` and `scripts\verify_local.ps1` both failed at the same Vite/esbuild `spawn EPERM` environment blocker while loading `vite.config.ts`; no CSS/TS source diagnostic was reported.
+- Goal 7B `.gitignore` cleanup removed obsolete `output/imagegen/bg_ending.png` and `web/public/bg_ending.webp` ignore rules; future restored public ending assets are no longer blocked from normal Git tracking.
 - Goal 7 classified the `/bg_ending.webp` warning: the CSS public-root path itself is valid for Vite, but the target asset is missing from `web/public/` and no same-named asset exists under `web`. No image was downloaded or added; this remains a project asset follow-up.
 - Goal 7 build verification is blocked by the existing local Vite/esbuild `spawn EPERM` failure before asset resolution, so `npm run build` could not confirm the post-classification warning state.
 - Goal 6 backend smoke test now passes: `scripts\verify_local.ps1 -Smoke` checks the Python 3.12 venv, starts uvicorn for `web_app:app` on `127.0.0.1:8010`, confirms the backend is listening, and stops the process in `finally`.

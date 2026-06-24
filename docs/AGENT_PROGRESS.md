@@ -697,3 +697,90 @@
 - `docs/AGENT_PROGRESS.md`
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
+
+## Session 2026-06-24 16:33 Local
+
+### Goal
+- Goal 7B final re-verification and documentation convergence only: confirm the `/bg_ending.webp` source fix state, run the requested build and local verification gate, and avoid source changes unless a clear CSS/TS source error appears.
+
+### What I inspected
+- `web/src/styles.css`
+- `scripts\verify_local.ps1`
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+- `git status --short`
+
+### Bugs found
+- [Medium] Local frontend environment: `npm run build` and `scripts\verify_local.ps1` both failed while Vite/esbuild loaded `vite.config.ts`, raising `Error: spawn EPERM`. This is the recurring environment blocker, not a reported CSS/TS source diagnostic.
+
+### Changes made
+- No source changes.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: recorded the Goal 7B final re-verification result and current blocker classification.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `git status --short` | PASS | Initial status was clean. |
+| `cd web; npm run build` | FAIL | `tsc -b` completed, then Vite failed to load config because esbuild child process spawn returned `EPERM`. |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_local.ps1` | FAIL | Python venv check, compile phase, and pytest passed; pytest reported `49 passed, 1 warning`; frontend build failed with the same Vite/esbuild `spawn EPERM`. |
+| `Select-String -Path web\src\styles.css -Pattern "bg_ending|/bg_ending.webp"` | PASS | No matches. |
+| `git status --short` | PASS | Run before documentation updates; no tracked/untracked changes were present at that point. |
+
+### Current status
+- PARTIAL: Goal 7B source fix is done and verified by search, but the requested full build/verification gate is blocked by recurring local Vite/esbuild `spawn EPERM`.
+
+### Remaining blockers
+- Vite/esbuild `spawn EPERM` recurred during frontend build and during the frontend phase of `scripts\verify_local.ps1`.
+- Pytest still reports the non-blocking `.pytest_cache` write warning, while tests pass.
+
+### Next recommended action
+- Treat Goal 7B as `SOURCE_FIX_DONE / ENV_BLOCKER_INTERMITTENT`; rerun `npm run build` and `scripts\verify_local.ps1` after the local Windows esbuild spawn permission condition clears.
+
+### Files changed this session
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
+## Session 2026-06-24 16:42 Local
+
+### Goal
+- Goal 7B cleanup: remove obsolete `bg_ending`-specific ignore rules from `.gitignore` only, without changing business code or frontend source.
+
+### What I inspected
+- `.gitignore`
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+- `git grep -n "bg_ending"`
+- `git status --short`
+
+### Bugs found
+- [Low] `.gitignore`: obsolete `output/imagegen/bg_ending.png` and `web/public/bg_ending.webp` ignore rules would prevent a future restored ending asset from being tracked normally.
+
+### Changes made
+- `.gitignore`: removed `output/imagegen/bg_ending.png` and `web/public/bg_ending.webp`; left unrelated ending timeline ignore rules unchanged.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: recorded the scoped cleanup.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `Select-String -Path .gitignore -Pattern "bg_ending|output/imagegen|web/public" -Context 2,2` | PASS | Confirmed both targeted `bg_ending` ignore rules were present before cleanup. |
+| `git grep -n "bg_ending"` | PASS | After cleanup, no `.gitignore`, `web/src`, or `web/public` matches remained; matches were documentation history only. |
+| `git status --short` | PASS | Showed `.gitignore` plus the three docs files modified. |
+
+### Current status
+- PASS for this scoped cleanup: the obsolete `.gitignore` `bg_ending` rules are removed, and source/public asset paths remain free of `bg_ending` matches.
+
+### Remaining blockers
+- The existing local Vite/esbuild `spawn EPERM` environment blocker remains tracked separately; this cleanup did not run build verification.
+- Pytest cache permission warning remains tracked separately.
+
+### Next recommended action
+- Commit the Goal 7B CSS cleanup and `.gitignore` cleanup together when ready.
+
+### Files changed this session
+- `.gitignore`
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
