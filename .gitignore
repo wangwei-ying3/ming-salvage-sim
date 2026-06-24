@@ -28,10 +28,16 @@ data/
 *.db
 *.sqlite
 *.sqlite3
+*.db-journal
+*-journal
+tmp*/
+scripts/runs/
 
 # OS / editor noise
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
 
 # Local AI assistant workspace
 .claude/
@@ -47,6 +53,7 @@ web/public/portraits/_original_before_cutout
 htmlcov/
 output
 # Frontend
+node_modules/
 web/node_modules/
 web/dist/
 web/release/

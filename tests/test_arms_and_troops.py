@@ -1,4 +1,3 @@
-import tempfile
 import unittest
 
 from ming_sim.content import GameContent, canon_troop_name, troop_rate_for_type
@@ -11,13 +10,14 @@ import ming_sim.issues as issues
 class ArmsAndTroopsTests(unittest.TestCase):
     def setUp(self):
         self.content = GameContent.load()
-        self.tmp = tempfile.NamedTemporaryFile(suffix=".db")
-        self.db = GameDB(self.tmp.name, self.content)
+        self.db_path = ":memory:"
+        self.db = GameDB(self.db_path, self.content)
         self.db.seed_static_data()
         self.state = self.db.load_state()
 
     def tearDown(self):
-        self.tmp.close()
+        if hasattr(self, "db"):
+            self.db.close()
 
     def test_opening_arms_stock_defaults(self):
         # 总库＝国家战略储备（供拨发），与军队已配持械是两份。
@@ -111,13 +111,14 @@ class TroopRateAndCanonTests(unittest.TestCase):
 class TechGateTests(unittest.TestCase):
     def setUp(self):
         self.content = GameContent.load()
-        self.tmp = tempfile.NamedTemporaryFile(suffix=".db")
-        self.db = GameDB(self.tmp.name, self.content)
+        self.db_path = ":memory:"
+        self.db = GameDB(self.db_path, self.content)
         self.db.seed_static_data()
         self.state = self.db.load_state()
 
     def tearDown(self):
-        self.tmp.close()
+        if hasattr(self, "db"):
+            self.db.close()
 
     def test_troop_tiers_seeded(self):
         n = self.db.conn.execute("SELECT COUNT(*) FROM troop_tiers").fetchone()[0]

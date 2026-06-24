@@ -1,0 +1,18 @@
+## 2026-06-24
+
+- Final Goal 3/4 re-verification made no source changes and found no TypeScript source failure: direct `esbuild.cmd --version` reported `0.27.7`, direct `tsc.cmd -b` passed, but Vite/esbuild still failed with `spawn EPERM` during `npm run build` and `scripts\verify_local.ps1`; classified as `ENV_BLOCKER_INTERMITTENT`.
+- Reviewed Goal 4 Markdown bold rendering in `web/src/components/modals.tsx`: `renderInlineBoldText()` converts only closed `**text**` spans into React `<strong>` nodes, leaves other content as React text nodes, supports multiple bold segments, handles empty/unclosed input without throwing, and does not use `dangerouslySetInnerHTML`.
+- Confirmed the renderer is applied to the requested AI text surfaces: month-end report, history report, detail narrative, state report, edict report, ending summary, chat messages, and secret-order text.
+- Goal 4 verification is PARTIAL: `npm run build` and `scripts\verify_local.ps1` both failed at the frontend build step with recurring Vite/esbuild `spawn EPERM`; Python compileall and pytest still passed (`49 passed, 1 warning`).
+- Recorded Goal 3 PASS after environment recovery: reinstalling dependencies from the correct `web` directory resolved the Vite/esbuild `spawn EPERM` blocker. `npm run build`, `scripts\verify_local.ps1`, Python compileall, pytest (`49 passed`), and frontend build now pass.
+- Left two Vite warnings tracked as non-blocking follow-up items: `/bg_ending.webp` build-time resolution warning and chunks larger than 500 kB after minification.
+- Diagnosed frontend build failure as an environment blocker: `tsc -b` and direct `esbuild.cmd --version` pass, while Vite fails to spawn esbuild with `EPERM` while loading `vite.config.ts`; no business source changes were made for this.
+- Verified `scripts/verify_local.ps1` default mode is correctly mode-gated: it checks the Python 3.12 venv, runs compileall and pytest, then runs frontend build only when `tsc.cmd` and `vite.cmd` are present; it does not install dependencies or start uvicorn unless explicit switches are used.
+- Added `*.swp` and `*.swo` to `.gitignore` so editor swap files do not appear in commit candidates.
+- Fixed Markdown bold rendering for AI text in `web/src/components/modals.tsx` by adding a small React-node renderer for `**text**` and applying it to report, chat, secret-order, history, state, edict, and ending summary text surfaces. The renderer does not use `dangerouslySetInnerHTML`, so HTML-like input remains escaped text.
+- Made `scripts/verify_local.ps1` frontend build detection robust: default verification now requires `web/node_modules/.bin/tsc.cmd` and `web/node_modules/.bin/vite.cmd` before running `npm run build`, and otherwise skips with a `-Install` prompt.
+- Updated `scripts/verify_local.ps1 -Install` to choose `npm ci` when `web/package-lock.json` exists and `npm install` otherwise, then verify the frontend tool shims exist.
+- Added npm permission-error guidance to `scripts/verify_local.ps1` for Windows `EPERM` failures during frontend install.
+- Fixed `tests/test_arms_and_troops.py` test DB setup by replacing locked/file-backed temporary SQLite paths with `GameDB(":memory:", ...)` in the two DB-backed test classes and explicitly closing DB connections in `tearDown`.
+- Fixed `tests/test_structured_directives.py` simulator payload dummy DB compatibility by adding the minimal `army_held_arms_all()` method expected by production code.
+- Added `pytest.ini` with `testpaths = tests` so the standard `python -m pytest -q` command collects the intended test suite and does not scan root-level local temp remnants.
