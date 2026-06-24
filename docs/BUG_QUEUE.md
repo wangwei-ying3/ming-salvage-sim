@@ -1,6 +1,5 @@
 ## Open
 
-- [Medium] ENV_BLOCKER_INTERMITTENT frontend build recurrence: final Goal 3/4 re-verification still fails during `npm run build` and `scripts\verify_local.ps1` while Vite loads `vite.config.ts`, raising esbuild `Error: spawn EPERM`. Direct `esbuild.cmd --version` and `tsc.cmd -b` pass, and Python compileall/pytest pass.
 - [Low] Frontend build warning: Vite previously reported `/bg_ending.webp` referenced in `/bg_ending.webp` did not resolve at build time. Warning remains a follow-up item after the build environment is stable.
 - [Low] Frontend build warning: Vite previously reported some chunks are larger than 500 kB after minification. Warning remains a follow-up item after the build environment is stable.
 - [Low] ENV_BLOCKER workspace cleanup: ignored local files `.pytest.ini.swp` and `pytest_probe.db` remain on disk but return `Access is denied` when deleted. They are ignored and do not appear in `git status --short`.
@@ -9,7 +8,9 @@
 
 ## Resolved
 
-- [Medium] ENV_BLOCKER frontend build: Vite failed while starting esbuild with `Error: spawn EPERM`. Previously resolved in Goal 3 by reinstalling dependencies from the correct `web` directory and rebuilding; reopened as a recurrence in Goal 4.
+- [Medium] ENV_BLOCKER_INTERMITTENT frontend build recurrence: user manually re-verified `cd web && npm run build` and root `scripts\verify_local.ps1` as PASS after the Windows `esbuild spawn EPERM` condition cleared. Current status is no longer blocking.
+- [Medium] Markdown bold renderer review: reviewed and accepted as PASS. AI text `**bold**` markers are rendered via React nodes without `dangerouslySetInnerHTML`.
+- [Medium] ENV_BLOCKER frontend build: Vite failed while starting esbuild with `Error: spawn EPERM`. Resolved after dependency/environment recovery and confirmed again by user manual verification.
 - [Medium] Frontend install: earlier `npm ci` attempts failed with Windows `EPERM` permission errors in `web/node_modules` and npm cache paths. Resolved by correcting the frontend dependency/directory state and rebuilding successfully.
 - [Low] `.gitignore`: editor swap files were not ignored. Resolved by adding `*.swp` and `*.swo`.
 

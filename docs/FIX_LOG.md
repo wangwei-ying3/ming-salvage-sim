@@ -1,5 +1,9 @@
 ## 2026-06-24
 
+- User manual re-verification confirmed the full local gate now passes: `cd web && npm run build` PASS, root `scripts\verify_local.ps1` PASS, Python compileall PASS, pytest PASS with `49 passed`, frontend build PASS, and local verification completed.
+- Confirmed the previous Vite/esbuild `spawn EPERM` condition has cleared and no longer blocks the project.
+- Confirmed the Markdown bold renderer review has passed.
+- Kept two non-blocking low-priority frontend warnings tracked: `/bg_ending.webp` did not resolve at build time, and some chunks are larger than 500 kB after minification.
 - Final Goal 3/4 re-verification made no source changes and found no TypeScript source failure: direct `esbuild.cmd --version` reported `0.27.7`, direct `tsc.cmd -b` passed, but Vite/esbuild still failed with `spawn EPERM` during `npm run build` and `scripts\verify_local.ps1`; classified as `ENV_BLOCKER_INTERMITTENT`.
 - Reviewed Goal 4 Markdown bold rendering in `web/src/components/modals.tsx`: `renderInlineBoldText()` converts only closed `**text**` spans into React `<strong>` nodes, leaves other content as React text nodes, supports multiple bold segments, handles empty/unclosed input without throwing, and does not use `dangerouslySetInnerHTML`.
 - Confirmed the renderer is applied to the requested AI text surfaces: month-end report, history report, detail narrative, state report, edict report, ending summary, chat messages, and secret-order text.

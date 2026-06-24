@@ -402,3 +402,49 @@
 - `docs/AGENT_PROGRESS.md`
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
+
+## Session 2026-06-24 15:48 Local
+
+### Goal
+- Document the user-verified full PASS state after `esbuild spawn EPERM` was cleared, without changing source code, scripts, or business logic.
+
+### What I inspected
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+- User-provided manual verification results
+
+### Bugs found
+- [Low] Frontend build warning: `/bg_ending.webp` referenced in `/bg_ending.webp` did not resolve at build time.
+- [Low] Frontend build warning: some chunks are larger than 500 kB after minification.
+
+### Changes made
+- `docs/AGENT_PROGRESS.md`: recorded the latest user-verified full local verification PASS state.
+- `docs/BUG_QUEUE.md`: resolved the recurring `esbuild spawn EPERM` blocker and retained the two Vite warnings as low-priority items.
+- `docs/FIX_LOG.md`: recorded the durable verification outcome and Markdown bold renderer review PASS.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `cd web && npm run build` | PASS | User manually re-verified; frontend build completed. |
+| `scripts\verify_local.ps1` | PASS | User manually re-verified from repository root; local verification completed. |
+| `python -m compileall .` | PASS | Covered by the successful local verification result. |
+| `python -m pytest -q` | PASS | User manually re-verified: `49 passed`. |
+| `frontend build` | PASS | Covered by `cd web && npm run build` and `scripts\verify_local.ps1`. |
+
+### Current status
+- PASS: local verification completed. The previous esbuild `spawn EPERM` no longer blocks the project, and the Markdown bold renderer review has passed.
+
+### Remaining blockers
+- None currently blocking checkpoint.
+- Low-priority warnings remain:
+  - `/bg_ending.webp` referenced in `/bg_ending.webp` did not resolve at build time.
+  - Some chunks are larger than 500 kB after minification.
+
+### Next recommended action
+- Create a checkpoint commit when ready.
+
+### Files changed this session
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
