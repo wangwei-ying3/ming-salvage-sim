@@ -51,6 +51,10 @@ def is_deepseek_base_url(base_url: str) -> bool:
     return "deepseek.com" in base_url.lower()
 
 
+def is_deepseek_v4_model(model: str) -> bool:
+    return (model or "").strip().lower().startswith("deepseek-v4")
+
+
 def is_dashscope_base_url(base_url: str) -> bool:
     return "dashscope" in base_url.lower() or "aliyuncs" in base_url.lower()
 
@@ -60,12 +64,39 @@ def is_minimax_base_url(base_url: str) -> bool:
     return "minimaxi.com" in lowered or "minimax.io" in lowered
 
 
-def provider_extra_body(base_url: str) -> Optional[Dict[str, object]]:
+def normalize_deepseek_reasoning_effort(level: str) -> str:
+    normalized = (level or "").strip().lower()
+    if normalized in {"max", "xhigh"}:
+        return "max"
+    if normalized in {"high", "medium", "low"}:
+        return "high"
+    return ""
+
+
+def provider_extra_body(
+    base_url: str,
+    model: str = "",
+    enable_thinking: bool = False,
+    thinking_level: str = "",
+    thinking_budget: Optional[int] = None,
+) -> Optional[Dict[str, object]]:
     if is_deepseek_base_url(base_url):
-        return {"thinking": {"type": "disabled"}}
+        if not is_deepseek_v4_model(model):
+            return None
+        return {"thinking": {"type": "enabled" if enable_thinking else "disabled"}}
     if is_dashscope_base_url(base_url):
+        if enable_thinking:
+            body: Dict[str, object] = {"enable_thinking": True}
+            if thinking_budget is not None:
+                body["thinking_budget"] = int(thinking_budget)
+            return body
         return {"enable_thinking": False}
     if is_minimax_base_url(base_url):
+        thinking_type = (thinking_level or ("adaptive" if enable_thinking else "disabled")).strip().lower()
+        if thinking_type not in {"adaptive", "disabled"}:
+            thinking_type = "adaptive" if enable_thinking else "disabled"
+        if enable_thinking:
+            return {"thinking": {"type": thinking_type}, "reasoning_split": True}
         return {"thinking": {"type": "disabled"}}
     return None
 

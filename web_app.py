@@ -417,7 +417,7 @@ def _verify_llm_configs_or_raise(config: LLMConfig) -> None:
         advanced_thinking_level=config.advanced_thinking_level,
     )
     try:
-        verify_llm_available(advanced_config)
+        verify_llm_available(advanced_config, enable_thinking=True)
     except LLMUnavailable as e:
         raise HTTPException(status_code=400, detail=_llm_error_detail(e, "高级模型连通性检查失败：")) from None
     except Exception as e:  # noqa: BLE001

@@ -9,6 +9,7 @@
 
 ## Resolved
 
+- [Medium] Goal 8 DeepSeek V4 advanced smoke mismatch: advanced-model save validation now runs the smoke check with the same thinking-enabled parameter path used by the monthly simulator, DeepSeek V4 thinking parameters are centralized, and legacy DeepSeek model IDs no longer receive V4-only `thinking` fields by default.
 - [Low] Frontend missing asset reference: `web/src/styles.css` no longer references `/bg_ending.webp`; the three ending background declarations now use their existing dark gradient fallbacks only, and searches for `bg_ending` and `/bg_ending.webp` return no matches. Goal 7B final recheck did not find any residual CSS reference.
 - [Low] `.gitignore` bg_ending cleanup: removed obsolete `output/imagegen/bg_ending.png` and `web/public/bg_ending.webp` ignore rules so any future restored ending asset can be tracked normally.
 - [Medium] Goal 6 smoke-mode gating: `scripts\verify_local.ps1 -Smoke` previously ran compile/test/frontend build before uvicorn, so the local Vite/esbuild `spawn EPERM` environment blocker prevented backend smoke from running. Resolved by making `-Smoke` skip the unrelated full gate and run only the backend startup/listening/cleanup check after the venv check.

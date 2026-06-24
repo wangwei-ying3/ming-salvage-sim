@@ -784,3 +784,57 @@
 - `docs/AGENT_PROGRESS.md`
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
+
+## Session 2026-06-24 16:53 Local
+
+### Goal
+- Goal 8: audit and minimally fix DeepSeek V4 / advanced model smoke-test parameter compatibility without real API calls, real API key reads, gameplay changes, frontend UI changes, upload/save/reducer changes, or SQLite transaction changes.
+
+### What I inspected
+- `ming_sim/llm_config.py`
+- `ming_sim/llm_model.py`
+- `web_app.py` LLM config save and smoke-test paths
+- `ming_sim/agents.py` monthly simulator/extractor agent creation paths
+- `ming_sim/session.py` monthly resolve call path
+- `tests/`
+- DeepSeek official API documentation for V4 chat/thinking parameters
+
+### Bugs found
+- [Medium] `web_app.py`: advanced-model save validation smoked the advanced config with `enable_thinking=False`, while the real monthly simulator path uses `for_role(..., "simulator")` plus `create_chat_model(..., enable_thinking=True)`, so validation did not match the real advanced invocation shape.
+- [Medium] `ming_sim/llm_config.py` / `ming_sim/llm_model.py`: DeepSeek provider thinking parameters were not capability-gated by model; all DeepSeek base URLs received `thinking: disabled` by default, while `enable_thinking=True` cleared the field entirely for V4.
+
+### Changes made
+- `ming_sim/llm_config.py`: added DeepSeek V4 model detection, DeepSeek reasoning-effort normalization, and centralized provider `extra_body` construction for DeepSeek, DashScope, and MiniMax.
+- `ming_sim/llm_model.py`: routed model construction through the centralized provider parameter function; added DeepSeek V4 `reasoning_effort` handling; added `enable_thinking` to `verify_llm_available()`.
+- `web_app.py`: advanced-model smoke validation now passes `enable_thinking=True`, matching the monthly simulator advanced path.
+- `tests/test_llm_provider_params.py`: added mock-only tests for DeepSeek V4 thinking params, legacy DeepSeek no-V4-thinking behavior, and advanced smoke thinking-path parity.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: recorded Goal 8 findings, fix, and verification.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `rg -n "advanced|smoke|llm|model|DeepSeek|deepseek|enable_thinking|thinking|extra_body|api_key|LLM" web_app.py ming_sim tests` | PASS | Located config save, smoke, provider parameter, and monthly advanced call paths. |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_llm_provider_params.py -q` | FAIL | Red step: 3 expected failures confirmed current mismatch and unsupported legacy DeepSeek `thinking` field behavior. |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_llm_provider_params.py -q` | PASS | Green step: `3 passed, 1 warning`; warning is the known `.pytest_cache` permission issue. |
+| `.\.venv\Scripts\python.exe -m pytest -q` | PASS | `52 passed, 1 warning`; warning is the known `.pytest_cache` permission issue. |
+| `git diff -- ming_sim\llm_config.py ming_sim\llm_model.py web_app.py tests\test_llm_provider_params.py` | PASS | Reviewed scoped source/test diff. |
+| `git status --short` | PASS | Showed modified LLM files, docs, and new test file. |
+
+### Current status
+- PASS: Goal 8 compatibility fix is implemented and covered by mock-only tests. No real LLM API was called.
+
+### Remaining blockers
+- Local `.pytest_cache` write permission warning remains, but pytest passes.
+- Existing frontend Vite/esbuild `spawn EPERM` environment blocker remains tracked separately and was not part of this Python-only Goal 8 pass.
+
+### Next recommended action
+- Commit Goal 8 with the mock tests and provider parameter normalization when ready.
+
+### Files changed this session
+- `ming_sim/llm_config.py`
+- `ming_sim/llm_model.py`
+- `web_app.py`
+- `tests/test_llm_provider_params.py`
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`

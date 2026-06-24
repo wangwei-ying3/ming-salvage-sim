@@ -1,5 +1,6 @@
 ## 2026-06-24
 
+- Goal 8 centralized provider parameter normalization for DeepSeek V4 thinking controls: `deepseek-v4*` models now receive explicit supported `thinking` toggles, optional `reasoning_effort` normalization, and advanced smoke validation uses the same thinking-enabled path as monthly simulator calls. Added mock-only tests; no real LLM API was called.
 - Goal 7B removed all `/bg_ending.webp` CSS references from `web/src/styles.css` without adding a replacement image. The affected ending background blocks already had dark gradient fallback layers, which are now the only backgrounds used there.
 - Confirmed Goal 7B searches are clean: `Select-String` found no remaining `bg_ending` or `/bg_ending.webp` references under `web`.
 - Goal 7B build verification remains blocked by local Vite/esbuild `spawn EPERM`; the full `scripts\verify_local.ps1` gate reached Python tests successfully (`49 passed, 1 warning`) before failing at the same frontend build environment blocker.
