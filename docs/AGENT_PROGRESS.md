@@ -1032,6 +1032,53 @@
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
 
+## Session 2026-06-25 10:03 Local
+
+### Goal
+- Goal 11B-1: add a strict LLM structured payload validation boundary after extractor parse/sanitizer repair and before reducer entry, with mock-only tests and no DB transaction changes.
+
+### What I inspected
+- `ming_sim/simulation.py`: extractor module allowlists, top-level/item canonicalization, sanitizer fallback path, `_sanitize_module_output()`, and `extract_scores_by_modules_with_agno()` reducer handoff.
+- `ming_sim/constants.py`: region, army, fiscal, and power field alias/allowed-field constants used by existing reducers.
+- `ming_sim/issues.py`: reducer broad-exception and partial-apply risks from Goal 11A, kept out of this boundary-only patch.
+- `tests/`: existing patterns and the new mock-only structured payload validation tests.
+
+### Bugs found
+- [Medium] `ming_sim/simulation.py`: parsed extractor payloads and sanitizer-repaired payloads could reach permissive module sanitization without fail-closed checks for unknown top-level fields or selected unknown nested fields.
+- [Medium] `ming_sim/simulation.py`: partial valid/invalid payloads were not rejected as a whole before reducer entry.
+- [High] `ming_sim/issues.py` / `ming_sim/db/**`: reducer partial-apply and transaction/rollback gaps remain out of scope for Goal 11B-1 and are tracked for Goal 11B-2/Goal 12.
+
+### Changes made
+- `ming_sim/simulation.py`: added `validate_structured_extraction_payload()` plus small type/nested-field helpers. The validator canonicalizes aliases, enforces module top-level allowlists, rejects invalid top-level value types, and rejects unknown nested fields in `region_delta`, `army_delta`, and `power_updates`.
+- `ming_sim/simulation.py`: calls the validator immediately after `parse_agent_json()`, including the sanitizer repair path, and before `_sanitize_module_output()` can copy fields into reducer input.
+- `tests/test_llm_structured_payload_validation.py`: added mock-only tests for unknown top-level fields, unknown nested region/army/power fields, partial valid/invalid rejection, valid minimal payload acceptance, and sanitizer-path illegal structures.
+- `docs/BUG_QUEUE.md` and `docs/FIX_LOG.md`: recorded the fixed validation boundary and remaining transaction/rollback follow-up.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `rg -n "def _canonicalize_extraction|def _sanitize_module_output|MODULE_FIELDS|EMPTY_EXTRACTION|parse_agent_json|apply_score_extraction|REGION_SCORE_FIELDS|ARMY_SCORE_FIELDS|POWER_FIELD_ALIASES" ming_sim/simulation.py ming_sim/constants.py ming_sim/issues.py tests/test_llm_structured_payload_validation.py` | PASS | Located the narrow extractor-parse to reducer boundary and field allowlists. |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_llm_structured_payload_validation.py -q` | PASS | `6 passed`; `.pytest_cache` WinError 5 warning only. |
+| `.\.venv\Scripts\python.exe -m pytest -q` | PASS | `72 passed`; warnings are Starlette TestClient deprecation and local `.pytest_cache` WinError 5. |
+| `git diff -- ming_sim\simulation.py tests\test_llm_structured_payload_validation.py --check` | PASS | No whitespace errors; Git warned LF will be replaced by CRLF when touched. |
+
+### Current status
+- PASS: illegal structured payloads are blocked before reducer entry, and both targeted and full Python tests pass.
+
+### Remaining blockers
+- Reducer exception propagation, staging, and transaction/rollback semantics are still open for Goal 11B-2/Goal 12.
+- Local `.pytest_cache` creation still reports WinError 5, but tests pass and this is an environment/cache permission issue.
+
+### Next recommended action
+- Execute Goal 11B-2/Goal 12 to remove broad reducer swallowing and add an outer transaction/rollback boundary for monthly structured extraction settlement.
+
+### Files changed this session
+- `ming_sim/simulation.py`
+- `tests/test_llm_structured_payload_validation.py`
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
 ## Session 2026-06-25 09:38 Local
 
 ### Goal
@@ -1078,6 +1125,57 @@
 ### Files changed this session
 - `web_app.py`
 - `tests/test_save_load_atomicity.py`
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
+## Session 2026-06-25 09:48 Local
+
+### Goal
+- Goal 11A: audit the LLM structured-output to deterministic reducer boundary without source changes, tests, commits, gameplay changes, or real LLM API calls.
+
+### What I inspected
+- `ming_sim/agents.py`: non-stream agent output capture, `parse_agent_json()`, JSON fence/snippet repair, and sanitizer agent entry points.
+- `ming_sim/simulation.py`: extractor module allowed fields, top-level aliasing, canonicalization, module output sanitization, sanitizer fallback, output merge, and trace serialization.
+- `ming_sim/issues.py`: `apply_score_extraction()` reducer order, broad exception handling, issue/personnel/secret-order mutation paths, and final summary return.
+- `ming_sim/db/regions.py`, `ming_sim/db/armies.py`, `ming_sim/db/arms.py`, `ming_sim/db/powers.py`, `ming_sim/db/turns.py`, and other `ming_sim/db/**` commit/rollback searches.
+- `web_app.py`: structured directive request shape, structured directive API routes, and month-end/decision SSE worker exception handling.
+- `tests/**`: existing reducer, structured directive, field coverage, and save-load tests.
+
+### Bugs found
+- [High] `ming_sim/issues.py:1607`: `apply_score_extraction()` applies early state/DB changes before later reducers, then catches several later reducer failures with broad `except Exception` and continues, allowing partial monthly settlement.
+- [High] `ming_sim/db/**`: reducer helpers commit independently (`regions.py:312`, `armies.py:503/738`, `powers.py:153`, `turns.py:197/351`, etc.) and the audited files do not show a surrounding transaction/rollback boundary for a complete monthly extraction settlement.
+- [Medium] `ming_sim/simulation.py:819`: module sanitization enforces a top-level per-module allowlist by copying allowed keys and dropping unknown keys, but it does not fail closed on unknown top-level fields.
+- [Medium] `ming_sim/db/regions.py:191` and `ming_sim/db/armies.py:356`: nested-field behavior is inconsistent; invalid `region_delta` fields raise, while invalid `army_delta` and `power_updates` fields are logged/skipped, so partial valid/invalid payload semantics differ by reducer.
+- [Medium] `ming_sim/simulation.py:1256`: malformed extractor JSON can be repaired by a sanitizer LLM and accepted if it parses, but the accepted object is still validated only by the permissive sanitizer/reducer path rather than a strict schema.
+- [Low] `tests/`: no clear regression coverage for malformed JSON, unknown top-level fields, unknown nested fields, partial valid/invalid extractor payloads, reducer exception propagation, or rollback semantics.
+
+### Changes made
+- No source code changes.
+- No tests added or modified.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: recorded Goal 11A risks and Goal 11B patch direction.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `rg -n "json|JSON|structured|extract|extractor|repair|fallback|directive|payload|apply|delta|reducer|commit|rollback|transaction|except Exception|validate|schema" ming_sim/agents.py ming_sim/simulation.py ming_sim/issues.py ming_sim/db web_app.py tests` | PASS | Located extractor parse/sanitize/reducer and DB commit paths. |
+| `rg -n "region_delta|army_delta|treasury|minister|edict|chat|history|structured_directives|turn_structured|turn_directives|delta" ...` | PASS | Located field-specific reducer and structured directive surfaces; one broad scan included extra `ming_sim` output but no source was modified. |
+| `rg -n "def parse_agent_json|JSON_SANITIZER|MODULE_FIELDS|EMPTY_EXTRACTION|TOP_LEVEL|ITEM_FIELD|_clean_economy_moves|_clean_fiscal|_merge_module_outputs" ming_sim\agents.py ming_sim\simulation.py` | PASS | Confirmed JSON object parse, sanitizer fallback, top-level module allowlists, and permissive clean/drop behavior. |
+| `rg -n "def apply_score_extraction|apply_region_deltas|apply_army_deltas|commit\(|rollback\(|except Exception" ming_sim\issues.py ming_sim\db tests` | PASS | Confirmed broad exception/continue paths and many independent DB commits; no rollback boundary found in audited files. |
+| `rg -n "malformed|invalid JSON|unknown|unknown nested|region_delta|army_delta|partial|rollback|exception|LLMContractError|apply_score_extraction|extract_scores|sanitizer" tests` | PASS | Found existing happy-path/field tests, but not the failure-mode/rollback tests required for Goal 11B. |
+| `git status --short` | PASS | Shows existing Goal 10B changes plus docs updated by this audit. |
+
+### Current status
+- RISK_FOUND: audit completed; no source code or tests were modified and no real LLM API was called.
+
+### Remaining blockers
+- Goal 11B should add strict schema validation, fail-closed unknown-field handling, reducer staging, exception propagation, transaction rollback, and targeted mock tests.
+- Existing uncommitted Goal 10B source/test/docs changes remain in the working tree.
+
+### Next recommended action
+- Execute Goal 11B as a scoped patch around extractor validation and reducer transaction semantics, without changing gameplay values.
+
+### Files changed this session
 - `docs/AGENT_PROGRESS.md`
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
