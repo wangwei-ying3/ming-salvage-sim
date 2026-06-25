@@ -1088,6 +1088,57 @@
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
 
+## Session 2026-06-25 11:43 Local
+
+### Goal
+- Goal 13: final verification and sharing preparation without new feature fixes, source rewrites, real LLM API calls, or commits.
+
+### What I inspected
+- Git workspace state, recent commit history, and diff stats.
+- Python pytest, backend smoke, direct frontend build, and full local verification gate.
+- Ignored/untracked local files and tracked file names matching env/db/sqlite/node_modules/dist/.venv/cache.
+- README setup coverage and release/share documentation.
+
+### Bugs found
+- [Medium] ENV_BLOCKER_INTERMITTENT: direct frontend `npm run build` and full `scripts\verify_local.ps1` both fail while Vite loads `vite.config.ts`, raising esbuild `Error: spawn EPERM`. No TypeScript/CSS/source diagnostic was emitted.
+- [Low] README quick-start instructions are older than the current verification flow: they mention Python 3.11+ and `npm install`, but the current local gate expects Python 3.12 and the share checklist now documents `requirements-dev.txt`, `npm ci`, `verify_local.ps1`, and `-Smoke`.
+
+### Changes made
+- `docs/RELEASE_CHECKLIST.md`: added final setup, verification, LLM config, secret-exclusion, Windows esbuild EPERM recovery, and PR preparation guidance.
+- `docs/BUG_QUEUE.md`: refreshed the frontend build `ENV_BLOCKER_INTERMITTENT` entry with the current Goal 13 verification result.
+- `docs/FIX_LOG.md`: recorded Goal 13 final verification/share-prep results.
+- `docs/AGENT_PROGRESS.md`: recorded this final verification session.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `git status --short` | PASS | Initial status was clean before Goal 13 documentation updates. |
+| `git log --oneline --decorate -12` | PASS | HEAD was `5bfe4f5 (HEAD -> audit-fixes) fix: complete settlement transaction commit migration`. |
+| `git diff --stat` | PASS | Initial diff was empty before Goal 13 documentation updates. |
+| `.\.venv\Scripts\python.exe -m pytest -q` | PASS | `94 passed, 2 warnings`; warnings are Starlette TestClient deprecation and `.pytest_cache` WinError 5. |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_local.ps1 -Smoke` | PASS | `.venv` Python 3.12.10; backend listened on `127.0.0.1:8010`. |
+| `cd web; npm run build; cd ..` | FAIL | Vite failed loading `vite.config.ts` with esbuild `Error: spawn EPERM`; classified as `ENV_BLOCKER_INTERMITTENT`. |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_local.ps1` | FAIL | Python compile and pytest passed (`94 passed, 2 warnings`); frontend build failed with the same esbuild `spawn EPERM`. |
+| `git status --short --ignored` | PASS | Ignored local `.venv/`, `web/node_modules/`, `web/dist/`, local data/cache/temp/db remnants are not tracked; several ignored directories report permission-denied warnings. |
+| `git ls-files | findstr /i ".env db sqlite node_modules dist .venv cache"` | PASS | Matches were expected tracked source/docs such as `.env.example`, `docs/db-schema.md`, `ming_sim/db/**`, tests, and `web/src/vite-env.d.ts`; no real `.env`, local DB, `.venv`, node_modules, dist, or cache files are tracked. |
+| `rg -n "Python 3\.12|venv|requirements\.txt|requirements-dev|npm ci|verify_local|Smoke|LLM|API|\.env|API key|api key|DeepSeek|OpenAI" README.md docs scripts web\README.md` | PARTIAL | Found README/docs/scripts setup and API references; command exited nonzero because `web\README.md` does not exist. |
+
+### Current status
+- PARTIAL: Python tests and backend smoke pass; frontend build and full local gate are blocked by the recurring local esbuild `spawn EPERM` environment issue.
+
+### Remaining blockers
+- Resolve the local Windows esbuild spawn permission issue, then rerun `cd web && npm run build` and `scripts\verify_local.ps1`.
+- README quick start can be modernized later; exact share commands now live in `docs/RELEASE_CHECKLIST.md`.
+
+### Next recommended action
+- Do not push until the frontend build blocker is either cleared locally or explicitly accepted as an environment-only blocker for the PR.
+
+### Files changed this session
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+- `docs/RELEASE_CHECKLIST.md`
+
 ## Session 2026-06-25 11:24 Local
 
 ### Goal
