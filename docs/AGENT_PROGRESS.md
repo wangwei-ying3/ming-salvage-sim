@@ -1077,6 +1077,53 @@
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
 
+## Session 2026-06-25 10:21 Local
+
+### Goal
+- Goal 12A: audit SQLite/monthly settlement transaction boundaries and document rollback risks without source or test changes.
+
+### What I inspected
+- `web_app.py`: decree issue and streaming routes that call `game.session.resolve_turn()` / `submit_decisions()`.
+- `ming_sim/simulation.py`: extractor parse/validation/sanitizer path, confirming it prepares payloads but does not write DB.
+- `ming_sim/issues.py`: `apply_score_extraction()`, 11B-2 fail-fast helper, `apply_issue_inertia_and_ongoing()`, direct `db.conn.commit()` calls, and reducer ordering.
+- `ming_sim/db/**`: SQLite connection setup and commit points in state, turn, region, army, arms, power, fiscal/economy, issue, character, secret-order, building, memory, and chat helpers.
+- `tests/**`: rollback/transaction/fail-fast coverage.
+
+### Bugs found
+- [High] `ming_sim/issues.py` / `ming_sim/db/**`: no visible outer transaction/savepoint encloses monthly structured settlement. 11B-2 fail-fast stops later reducers but cannot roll back earlier committed steps.
+- [High] `ming_sim/db/**`: many reducer helpers call `self.conn.commit()` internally, so a naive outer transaction around `apply_score_extraction()` would be broken unless those helpers defer commits or become transaction-aware.
+- [Medium] `ming_sim/issues.py`: `apply_issue_inertia_and_ongoing()` and issue-effect helpers also write/commit month-end effects outside an audited rollback boundary.
+- [Medium] Audit scope: the full `GameSession`/decree orchestration appears to pass through `ming_sim/decree.py` by search result, but that file was not in this turn's explicit allowed-read list, so the exact internal phase ordering still needs confirmation before patching.
+
+### Changes made
+- No source code changes.
+- No tests added or modified.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: recorded transaction-boundary risks and Goal 12B patch plan.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `rg -n "apply_score_extraction\\(|extract_scores_by_modules_with_agno\\(|simulate_month|run_month|month_end|monthly|next_month|advance_month|settlement|结算|推演" web_app.py ming_sim\simulation.py ming_sim\issues.py tests` | PASS | Located allowed-file entry points and reducer/extractor functions. |
+| `rg -n "\\.commit\\(|commit\\(|rollback\\(|BEGIN|SAVEPOINT|RELEASE|in_transaction|isolation_level|transaction|atomic|savepoint" ming_sim\db ming_sim\issues.py ming_sim\simulation.py web_app.py tests` | PASS | Found many helper-local commits and no existing savepoint/transaction boundary in audited files. |
+| `rg -n "def apply_region_deltas|def apply_army_deltas|def create_armies_from_extraction|def apply_arms_stock_deltas|def apply_power_deltas|def add_ledger|def add_metric|def update_state|def save_state|def advance_issue|def insert_issue|def spend_issue_budget|def remove_fiscal_item|def create_fiscal_item|def set_fiscal" ming_sim\db ming_sim\issues.py` | PASS | Mapped major mutation helper functions to commit points. |
+| `rg -n "rollback|transaction|savepoint|in_transaction|BEGIN|fail fast|fail-fast|half|partial|region_delta.*fail|army_delta.*fail|metrics.*fail|DB state|state unchanged|rollback semantics|apply_score_extraction" tests` | PASS | Found fail-fast tests but no DB rollback/state-unchanged tests for reducer failures. |
+| `git status --short` | PASS | Existing working tree includes prior Goal 11 changes plus docs updated by this audit. |
+
+### Current status
+- RISK_FOUND: audit completed; no source code or tests were modified and no real LLM API was called.
+
+### Remaining blockers
+- Need to confirm the `ming_sim/decree.py` / `GameSession` internal monthly phase ordering before implementing Goal 12B, because it was outside this turn's explicit allowed-read list.
+- Need an outer transaction/savepoint design that accounts for helper-internal commits.
+
+### Next recommended action
+- Execute Goal 12B in small steps: add a transaction/savepoint helper, make monthly settlement use it, make helpers defer commits when inside settlement, and add rollback tests for failures after metrics/economy/region writes.
+
+### Files changed this session
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
 ## Session 2026-06-25 10:03 Local
 
 ### Goal
