@@ -1032,6 +1032,53 @@
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
 
+## Session 2026-06-25 11:24 Local
+
+### Goal
+- Goal 12C: audit remaining direct DB commits after Goal 12B-3 and decide whether any still break `_settle_after_narrative()` transaction rollback.
+
+### What I inspected
+- `ming_sim/decree.py`: confirmed the current transaction scope wraps only successful extractor output application, `apply_score_extraction()`, `save_turn_report()`, and `save_turn_extraction()`.
+- `ming_sim/issues.py`: traced `apply_score_extraction()` through issue, character, secret-order, and issue-effect helper paths.
+- `ming_sim/flows.py`: checked economy salary/arrears paths plus fixed annual/monthly flows.
+- `ming_sim/db/**`: searched all remaining `self.conn.commit()` points and compared them to the current settlement transaction call graph.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: updated audit status and follow-up scope.
+
+### Bugs found
+- [High] `ming_sim/flows.py:337` and `ming_sim/flows.py:420`: salary/arrears economy subpaths can run inside `apply_score_extraction()` and still call `db.conn.commit()` directly.
+- [High] `ming_sim/db/factions.py:76` and `ming_sim/db/regions.py:456`: faction/class adjustment helpers can run inside the extraction transaction and still call `self.conn.commit()` directly.
+- [High] `ming_sim/db/characters.py:105`, `ming_sim/db/characters.py:150`, `ming_sim/db/characters.py:194`, `ming_sim/db/characters.py:463`, `ming_sim/issues.py:272`, and `ming_sim/issues.py:1603`: character status/power/office/new-character/location/duplicate-office paths can run inside the extraction transaction and still commit directly.
+- [High] `ming_sim/db/secret_orders.py:194` and `ming_sim/db/secret_orders.py:277`: secret-order close/sim-note paths can run inside `apply_score_extraction()` and still commit directly.
+- [High] `ming_sim/db/buildings.py:112`, `ming_sim/db/buildings.py:130`, `ming_sim/db/buildings.py:221`, `ming_sim/db/buildings.py:325`, and `ming_sim/db/buildings.py:372`: issue-effect building/technology/department paths can run inside issue resolution during `apply_score_extraction()` and still commit directly.
+
+### Changes made
+- No source code changes.
+- No tests added or modified.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: recorded Goal 12C RISK_FOUND and the required Goal 12D scope.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `rg -n "\bself\.conn\.commit\(\)|\bdb\.conn\.commit\(\)" ming_sim\issues.py ming_sim\decree.py ming_sim\flows.py ming_sim\db` | PASS | Listed remaining direct commit calls in the audited scope. |
+| `rg -n "def _settle_after_narrative|apply_score_extraction|save_turn_report|save_turn_extraction|with db\.transaction" ming_sim\decree.py ming_sim\issues.py` | PASS | Confirmed the current extraction transaction boundary. |
+| `rg -n "^\\s*def |\\bself\\.conn\\.commit\\(\\)|\\bdb\\.conn\\.commit\\(\\)" ming_sim\\issues.py ming_sim\\flows.py ming_sim\\db` | PASS | Mapped direct commit lines to owning functions. |
+| `git status --short` | PASS | Captured existing working tree state before docs updates. |
+
+### Current status
+- RISK_FOUND: Goal 12C audit completed. Blocking direct commits remain reachable inside the current extraction transaction, so Goal 12 core transaction closure is not complete.
+
+### Remaining blockers
+- Goal 12D should migrate only the Blocking direct commit points reachable inside `apply_score_extraction()` to transaction-aware `self.commit()` / `db.commit()` and add rollback tests for the optional extractor paths.
+- Follow-up commits outside the current narrow transaction boundary remain for later hardening but do not block Goal 12D's targeted closure.
+
+### Next recommended action
+- Run Goal 12D before moving to Goal 13.
+
+### Files changed this session
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
 ## Session 2026-06-25 11:16 Local
 
 ### Goal
