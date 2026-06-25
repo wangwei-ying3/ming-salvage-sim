@@ -1032,6 +1032,54 @@
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
 
+## Session 2026-06-25 10:28 Local
+
+### Goal
+- Goal 12A-2: supplement the SQLite/monthly settlement transaction audit with `ming_sim/decree.py` and the GameSession orchestration chain, without source or test changes.
+
+### What I inspected
+- `web_app.py`: decree issue, streaming issue, and decision-resolution API routes.
+- `ming_sim/session.py`: `GameSession.resolve_turn()`, `submit_decisions()`, `begin_turn()`, and `auto_save()` wrappers needed to complete the GameSession chain requested by the task.
+- `ming_sim/decree.py`: `resolve_directives()`, `_settle_after_narrative()`, `resolve_decisions_phase2()`, and the normal/fallback settlement branches.
+- `ming_sim/simulation.py`: extractor entry and validation call point.
+- `ming_sim/issues.py`: `apply_score_extraction()` and `apply_issue_inertia_and_ongoing()`.
+- `ming_sim/db/**`, `ming_sim/flows.py`, `ming_sim/memories.py`, and relevant web chat/favorites paths for commit/write phase classification.
+
+### Bugs found
+- [High] `ming_sim/decree.py`: normal settlement concentrates extraction, reducer, report/extraction persistence, memories, issue inertia, ending, directive marking, turn advance, and state save in `_settle_after_narrative()` without a transaction/savepoint boundary.
+- [High] `ming_sim/session.py`: `resolve_turn()` performs `auto_save("preresolve")` before settlement and `resolve_directives()` applies fixed monthly flows before simulator/extractor. Wrapping the whole `resolve_turn()` call would include intentionally persistent rollback points and is too broad for the first patch.
+- [High] `ming_sim/flows.py` / `ming_sim/db/**`: fixed monthly flows and reducer helpers directly commit; helper-internal commits must be made transaction-aware before rollback tests can pass.
+- [Medium] `web_app.py` chat/favorites/history writes are independent UI/session state writes with their own commits and should not be included in the first monthly extraction transaction patch.
+
+### Changes made
+- No source code changes.
+- No tests added or modified.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: documented the full orchestration chain and Goal 12B patch boundary.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `rg -n "class GameSession|def resolve_turn|def submit_decisions|def _.*phase|extract_scores_by_modules_with_agno|apply_score_extraction|apply_issue_inertia_and_ongoing|save_turn_extraction|save_state|next_period|mark_directives_issued|record_turn_report|chat|history|favorite|resolve_decision|Decision|awaiting|commit\\(|rollback\\(|transaction|SAVEPOINT|BEGIN" ming_sim\decree.py` | PASS | Located decree orchestration and settlement write phases. |
+| `rg -n "api_issue_decree|api_issue_decree_stream|api_resolve_decisions_stream|resolve_turn|submit_decisions|refresh_turn" web_app.py` | PASS | Located web entry points to GameSession monthly settlement. |
+| `rg -n "class GameSession|def resolve_turn|def submit_decisions|def begin_turn|def auto_save" ming_sim\session.py web_app.py` | PASS | Completed the GameSession wrapper chain requested by this audit. |
+| `rg -n "def _apply_metric_dict|def _apply_economy_list|def _apply_faction_dict|def _apply_class_dict|record_issue_economy_move|db\\.conn\\.commit\\(|db\\.record_economy_moves" ming_sim\flows.py ming_sim\issues.py` | PASS | Confirmed metrics are in-memory only while economy/faction/class can commit through helpers. |
+| `git status --short` | PASS | Only docs are modified in this audit turn. |
+
+### Current status
+- RISK_FOUND: orchestration audit completed; no source code or tests were modified and no real LLM API was called.
+
+### Remaining blockers
+- Goal 12B must handle helper-internal commits before any rollback guarantee can be claimed.
+- Phase2 decision path is marked deprecated but still callable through `GameSession.submit_decisions()`; it must either share the transaction wrapper or be explicitly retired later.
+
+### Next recommended action
+- Start Goal 12B-1 with a transaction/savepoint helper in the DB layer, then Goal 12B-2 should wrap only the `_settle_after_narrative()` extraction/reducer block around `apply_score_extraction()` first.
+
+### Files changed this session
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
 ## Session 2026-06-25 10:12 Local
 
 ### Goal
