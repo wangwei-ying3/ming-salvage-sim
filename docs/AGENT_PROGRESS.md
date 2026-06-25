@@ -1032,6 +1032,53 @@
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
 
+## Session 2026-06-25 10:38 Local
+
+### Goal
+- Goal 12B-1: add a reusable DB transaction/savepoint helper and commit guard, plus focused tests and docs, without wiring monthly settlement or calling real LLM APIs.
+
+### What I inspected
+- `ming_sim/db/base.py`: `GameDB` base connection initialization, `backup_to()`, and absence of a managed transaction API.
+- `ming_sim/db/__init__.py`: `GameDB` mixin composition and `_BaseMixin` placement.
+- `ming_sim/db/**`: existing direct `self.conn.commit()` usage to confirm this pass should only provide the migration entry point.
+- Existing test patterns and current git status.
+
+### Bugs found
+- [High] `ming_sim/db/base.py`: no shared transaction/savepoint context manager existed for Goal 12B-2 to wrap structured extraction settlement safely.
+- [High] `ming_sim/db/**`: helper methods still call `self.conn.commit()` directly; this remains a migration risk for Goal 12B-3, but this session added the transaction-aware `db.commit()` entry point.
+
+### Changes made
+- `ming_sim/db/base.py`: added `GameDB.transaction()` with outer `BEGIN`/`COMMIT`/`ROLLBACK`, nested `SAVEPOINT`/`RELEASE`/`ROLLBACK TO`, exception propagation, and no connection closing.
+- `ming_sim/db/base.py`: added `GameDB.commit()` guard that commits normally outside managed transactions and defers real commit while inside one.
+- `tests/test_db_transaction_helper.py`: added focused tests for success commit, rollback, nested savepoint success, nested savepoint rollback with outer continuation, guarded in-transaction commit, and outside-transaction commit.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: recorded Goal 12B-1 completion and remaining 12B-2/12B-3 integration work.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `rg -n "self\.conn\.commit\(|def commit\(|transaction\(" ming_sim\db tests` | PASS | Confirmed there was no existing transaction helper and many direct helper commits remain. |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_db_transaction_helper.py -q` | FAIL | Initial TDD run failed with missing `GameDB.transaction()` / `GameDB.commit()`, as expected. |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_db_transaction_helper.py -q` | PASS | `6 passed`; local `.pytest_cache` WinError 5 warning remains environmental. |
+| `.\.venv\Scripts\python.exe -m pytest -q` | PASS | `81 passed`; warnings are Starlette TestClient deprecation and local `.pytest_cache` WinError 5. |
+
+### Current status
+- PASS: DB transaction/savepoint helper and commit guard exist, and targeted plus full Python tests pass.
+
+### Remaining blockers
+- `_settle_after_narrative()` / `apply_score_extraction()` are not yet wrapped in this transaction helper; that is Goal 12B-2.
+- Reducer-related DB helpers still need selective migration from `self.conn.commit()` to `self.commit()` or another transaction-aware pattern; that is Goal 12B-3.
+- Local `.pytest_cache` creation still reports WinError 5, but tests pass and this is an environment/cache permission issue.
+
+### Next recommended action
+- Execute Goal 12B-2 by wrapping only the extractor -> `apply_score_extraction()` DB write segment in `ming_sim/decree.py::_settle_after_narrative()` with `db.transaction()`, then add rollback tests.
+
+### Files changed this session
+- `ming_sim/db/base.py`
+- `tests/test_db_transaction_helper.py`
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
 ## Session 2026-06-25 10:28 Local
 
 ### Goal
