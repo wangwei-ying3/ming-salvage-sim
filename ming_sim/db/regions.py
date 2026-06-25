@@ -309,7 +309,7 @@ class _RegionsMixin:
                 ):
                     extra = self._apply_on_restore(state, region_id, event, edict_id, actor, reason)
                     changes.extend(extra)
-        self.conn.commit()
+        self.commit()
         return changes
 
     def _apply_on_restore(

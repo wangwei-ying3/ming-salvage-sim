@@ -500,7 +500,7 @@ class _ArmiesMixin:
             # 兵尽即除——置 status='撤销'/active=0，清零维护费与欠饷（空壳不再吃饷累欠），
             # 行留库可被「收复/重建」事件复活。任何把兵打到 0 的来源（裁撤/战损/叛逃）统一收口于此。
             changes.extend(self._disband_if_empty(state, army_id, event, edict_id, actor, reason))
-        self.conn.commit()
+        self.commit()
         return changes
 
     def _match_current_army_id(self, raw_name: str) -> Optional[str]:
@@ -735,5 +735,5 @@ class _ArmiesMixin:
             if gate_notes:
                 created_entry["note"] = "；".join(gate_notes)
             created.append(created_entry)
-        self.conn.commit()
+        self.commit()
         return created

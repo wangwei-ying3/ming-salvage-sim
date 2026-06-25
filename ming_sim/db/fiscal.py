@@ -269,7 +269,7 @@ class _FiscalMixin:
         self.conn.execute(
             "UPDATE fiscal_config SET value = ? WHERE key = ?", (value, key)
         )
-        self.conn.commit()
+        self.commit()
 
     def create_fiscal_item(
         self,
@@ -315,7 +315,7 @@ class _FiscalMixin:
             "VALUES (?, 100, 'rate', 'fixed', ?, ?, ?, ?, ?, ?, ?, ?)",
             (rate_key, account, direction, display, sort_order, f"{display}实收率%", "", "", ""),
         )
-        self.conn.commit()
+        self.commit()
         return base_key
 
     def _stem_of(self, key: str) -> str:
@@ -353,7 +353,7 @@ class _FiscalMixin:
             )
             touched += 1
         if touched:
-            self.conn.commit()
+            self.commit()
         return touched
 
     # 可按「绝对万两增量」全国摊派的省级税字段（额是万两/月，能直接加减）。
@@ -386,7 +386,7 @@ class _FiscalMixin:
                 "UPDATE regions SET fiscal = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 (json.dumps(fiscal, ensure_ascii=False), region_id),
             )
-            self.conn.commit()
+            self.commit()
             return 1
         # 全国按占比摊派
         rows = self.conn.execute("SELECT id, fiscal FROM regions").fetchall()
@@ -424,7 +424,7 @@ class _FiscalMixin:
             )
             touched += 1
         if touched:
-            self.conn.commit()
+            self.commit()
         return touched
 
     def scale_tian_fu(self, ratio: float, region_id: str = "") -> int:
@@ -453,7 +453,7 @@ class _FiscalMixin:
             )
             touched += 1
         if touched:
-            self.conn.commit()
+            self.commit()
         return touched
 
     def remove_fiscal_item(self, key: str) -> Optional[str]:
@@ -483,7 +483,7 @@ class _FiscalMixin:
             self.apply_dynamic_fiscal_scale(stem, 0.0)
         elif stem == "田赋":
             self.scale_tian_fu(0.0)
-        self.conn.commit()
+        self.commit()
         return base_key
 
     def record_economy_moves(

@@ -150,7 +150,7 @@ class _PowersMixin:
                     "delta": log_delta,
                     "reason": reason,
                 })
-        self.conn.commit()
+        self.commit()
         return changes
 
     def apply_power_rename(

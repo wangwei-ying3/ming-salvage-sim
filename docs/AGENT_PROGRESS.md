@@ -1032,6 +1032,60 @@
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
 
+## Session 2026-06-25 11:16 Local
+
+### Goal
+- Goal 12B-3: migrate only `apply_score_extraction()` settlement-chain DB helper internal commits in the allowed files to the transaction-aware `self.commit()` guard, add rollback tests, and avoid real LLM calls.
+
+### What I inspected
+- `ming_sim/issues.py::apply_score_extraction()`: direct DB helper calls for new armies, region/army/power deltas, fiscal changes, issue tracker output, character/power/status/secret-order paths, and turn settlement return structure.
+- `ming_sim/db/regions.py`, `ming_sim/db/armies.py`, `ming_sim/db/powers.py`, `ming_sim/db/fiscal.py`, `ming_sim/db/issues.py`, and `ming_sim/db/turns.py`: direct `self.conn.commit()` sites reachable from the allowed settlement chain.
+- `ming_sim/flows.py`: confirmed some economy/faction/class paths are reachable but outside this turn's allowed modification list.
+
+### Bugs found
+- [High] Allowed DB helper chain: `apply_region_deltas()`, `apply_army_deltas()`, `create_armies_from_extraction()`, `apply_power_deltas()`, fiscal helpers, issue tracker/economy/legacy helpers, and turn report/extraction writes could call `self.conn.commit()` inside `db.transaction()`, preventing rollback after later reducer failures.
+- [Medium] Out-of-scope optional paths: selected `ming_sim/flows.py`, arms, character, faction/class, and secret-order helpers can still contain direct commits and need a separate scoped pass before every optional extractor field can be claimed fully rollback-safe.
+
+### Changes made
+- `ming_sim/db/regions.py`: changed `apply_region_deltas()` to use `self.commit()`.
+- `ming_sim/db/armies.py`: changed `apply_army_deltas()` and `create_armies_from_extraction()` to use `self.commit()`.
+- `ming_sim/db/powers.py`: changed `apply_power_deltas()` to use `self.commit()`.
+- `ming_sim/db/fiscal.py`: changed settlement-chain fiscal config/create/remove/dynamic tax helpers to use `self.commit()`.
+- `ming_sim/db/issues.py`: changed settlement-chain issue tracker, economy move, legacy, and event-trigger helpers to use `self.commit()`.
+- `ming_sim/db/turns.py`: changed `save_turn_report()` and `save_turn_extraction()` to use `self.commit()`.
+- `tests/test_settlement_transaction_rollback.py`: added real SQLite rollback tests covering new-army-before-region-fail, region-before-army-fail, report/extraction trace failure, and outside-transaction compatibility.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: recorded Goal 12B-3 completion and residual out-of-scope paths.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `rg -n "def apply_score_extraction|db\.|apply_.*delta|save_turn_report|save_turn_extraction|save_state|update_|create_|insert_|expire_|commit\(" ...` | PASS | Located reducer DB helper chain and direct commit sites. |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_settlement_transaction_rollback.py -q` | FAIL | Initial TDD run failed: new army, region delta, and turn report/extraction rows survived rollback due to direct commits. |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_settlement_transaction_rollback.py -q` | PASS | `4 passed`; local `.pytest_cache` WinError 5 warning remains environmental. |
+| `.\.venv\Scripts\python.exe -m pytest -q` | PASS | `88 passed`; warnings are Starlette TestClient deprecation and local `.pytest_cache` WinError 5. |
+
+### Current status
+- PASS: allowed settlement-chain DB helper commits now use the transaction-aware guard, and rollback tests plus full Python tests pass.
+
+### Remaining blockers
+- Optional extractor paths outside this pass's allowed files still need a focused audit/migration before claiming every possible extractor field is rollback-safe.
+- Local `.pytest_cache` creation still reports WinError 5, but tests pass and this is an environment/cache permission issue.
+
+### Next recommended action
+- Audit and, if approved, migrate the remaining optional extractor paths outside this pass's allowed file list: `ming_sim/flows.py` economy subpaths, faction/class helpers, arms, character, and secret-order writes.
+
+### Files changed this session
+- `ming_sim/db/regions.py`
+- `ming_sim/db/armies.py`
+- `ming_sim/db/powers.py`
+- `ming_sim/db/fiscal.py`
+- `ming_sim/db/issues.py`
+- `ming_sim/db/turns.py`
+- `tests/test_settlement_transaction_rollback.py`
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
 ## Session 2026-06-25 10:56 Local
 
 ### Goal

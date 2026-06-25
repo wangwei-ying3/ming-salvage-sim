@@ -93,7 +93,7 @@ class _IssuesMixin:
             """,
             (event_id, state.turn, state.year, state.period, source),
         )
-        self.conn.commit()
+        self.commit()
 
     def insert_issue(
         self,
@@ -159,7 +159,7 @@ class _IssuesMixin:
                 (goal or "").strip(),
             ),
         )
-        self.conn.commit()
+        self.commit()
         return int(cur.lastrowid)
 
     # ----- 玩家手动管理的 decree 局势（is_manual=1）-----
@@ -314,7 +314,7 @@ class _IssuesMixin:
             "UPDATE issues SET budget_pool=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
             (round(new_pool, 4), int(issue_id)),
         )
-        self.conn.commit()
+        self.commit()
         return actual
 
     def delete_manual_issue(self, issue_id: int) -> bool:
@@ -423,7 +423,7 @@ class _IssuesMixin:
                 json.dumps(metric_delta or {}, ensure_ascii=False),
             ),
         )
-        self.conn.commit()
+        self.commit()
         return self.conn.execute("SELECT * FROM issues WHERE id=?", (issue_id,)).fetchone()
 
     def close_issue(
@@ -512,7 +512,7 @@ class _IssuesMixin:
                 json.dumps(applied_cost or {}, ensure_ascii=False),
             ),
         )
-        self.conn.commit()
+        self.commit()
         return self.conn.execute("SELECT * FROM issues WHERE id=?", (issue_id,)).fetchone()
 
     def list_recent_issue_advances(self, issue_id: int, limit: int = 3) -> List[sqlite3.Row]:
@@ -569,7 +569,7 @@ class _IssuesMixin:
              category, reason, purpose, target_kind, target_id),
         )
         self.sync_economy_accounts(state)
-        self.conn.commit()
+        self.commit()
         return actual
 
     # ── 帝国修正（legacies 表）：结案留下的长期百分比修正符，落账层放大/缩小增量 ────
@@ -602,7 +602,7 @@ class _IssuesMixin:
                 str(legacy_key)[:60],
             ),
         )
-        self.conn.commit()
+        self.commit()
         self._legacy_mod_cache = None  # active 集变了，修正符缓存失效
         return int(cur.lastrowid)
 
@@ -631,7 +631,7 @@ class _IssuesMixin:
                 "UPDATE legacies SET status='expired' WHERE id=?",
                 [(i,) for i in expired],
             )
-            self.conn.commit()
+            self.commit()
             self._legacy_mod_cache = None  # active 集变了，修正符缓存失效
         return expired
 

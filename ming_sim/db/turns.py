@@ -44,7 +44,7 @@ class _TurnsMixin:
             """,
             (state.turn, state.year, state.period, report),
         )
-        self.conn.commit()
+        self.commit()
 
     def get_turn_report(self, turn: int) -> str:
         row = self.conn.execute(
@@ -194,7 +194,7 @@ class _TurnsMixin:
             (state.turn, state.year, state.period, decree_text, narrative,
              extractor_input, extractor_output),
         )
-        self.conn.commit()
+        self.commit()
 
     def get_turn_extraction(self, turn: int) -> Optional[Dict[str, object]]:
         """读 turn_extractions 一行；extractor_output JSON 解析失败时原样回字符串。"""
