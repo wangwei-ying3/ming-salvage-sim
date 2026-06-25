@@ -71,6 +71,9 @@ class _DummyDB:
     def building_payload(self):
         return []
 
+    def army_held_arms_all(self):
+        return {}
+
 
 def test_simulator_payload_includes_structured_directives(monkeypatch):
     db = _DummyDB()

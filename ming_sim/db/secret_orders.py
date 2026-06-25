@@ -191,7 +191,7 @@ class _SecretOrdersMixin:
             """,
             (status, result, turn_closed, int(order_id)),
         )
-        self.conn.commit()
+        self.commit()
         tlog(f"[secret_order] close id={order_id} status={status}")
 
     def delete_secret_order(self, order_id: int) -> bool:
@@ -274,7 +274,7 @@ class _SecretOrdersMixin:
             f"UPDATE secret_orders SET {column} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
             ("\n".join(lines), int(order_id)),
         )
-        self.conn.commit()
+        self.commit()
         return True
 
     def update_secret_order_progress(

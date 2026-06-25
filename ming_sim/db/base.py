@@ -4,9 +4,11 @@ _BaseMixin。"""
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import json
 import re
 import sqlite3
+from collections.abc import Iterator
 from typing import Any, Dict, List, Optional, Tuple
 
 from ming_sim.assets import format_money, format_money_delta
@@ -39,10 +41,51 @@ class _BaseMixin:
         # 复用同一 GameDB 连接。游戏单写者、无并发写，跨线程安全。
         self.conn = sqlite3.connect(path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        self._transaction_depth = 0
+        self._transaction_savepoint_seq = 0
         # 遗产修正符缓存：legacy_modifiers 在落账热路径被频繁调用，缓存聚合结果，
         # 仅在 active 遗产集变化（insert_legacy / expire_legacies）时失效。
         self._legacy_mod_cache: Optional[Dict[str, object]] = None
         self.init_schema()
+
+    def commit(self) -> None:
+        """Commit immediately unless a managed transaction is active."""
+        if self._transaction_depth > 0:
+            return
+        self.conn.commit()
+
+    @contextmanager
+    def transaction(self) -> Iterator["_BaseMixin"]:
+        """Managed transaction with nested SAVEPOINT support."""
+        if self._transaction_depth == 0:
+            self.conn.execute("BEGIN")
+            self._transaction_depth = 1
+            try:
+                yield self
+            except Exception:
+                self.conn.rollback()
+                raise
+            else:
+                self.conn.commit()
+            finally:
+                self._transaction_depth = 0
+            return
+
+        self._transaction_savepoint_seq += 1
+        savepoint = f"ming_tx_{self._transaction_savepoint_seq}"
+        previous_depth = self._transaction_depth
+        self.conn.execute(f"SAVEPOINT {savepoint}")
+        self._transaction_depth = previous_depth + 1
+        try:
+            yield self
+        except Exception:
+            self.conn.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+            self.conn.execute(f"RELEASE SAVEPOINT {savepoint}")
+            raise
+        else:
+            self.conn.execute(f"RELEASE SAVEPOINT {savepoint}")
+        finally:
+            self._transaction_depth = previous_depth
 
     def ensure_column(self, table: str, column: str, definition: str) -> None:
         columns = {row["name"] for row in self.conn.execute(f"PRAGMA table_info({table})").fetchall()}

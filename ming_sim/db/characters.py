@@ -102,7 +102,7 @@ class _CharactersMixin:
                 "UPDATE characters SET status=?, status_reason=?, status_changed_turn=? WHERE name=?",
                 (status, reason[:200], state.turn, name),
             )
-        self.conn.commit()
+        self.commit()
 
     def get_character_status(self, name: str) -> Tuple[str, str]:
         row = self.conn.execute(
@@ -147,7 +147,7 @@ class _CharactersMixin:
                 (new_power, name),
             )
             applied.append({"name": name, "old_power": old_power, "new_power": new_power, "reason": reason})
-        self.conn.commit()
+        self.commit()
         return applied
 
     def set_character_office(
@@ -191,7 +191,7 @@ class _CharactersMixin:
             """,
             (name, office, eff_type, source),
         )
-        self.conn.commit()
+        self.commit()
         if name in self.content.characters:
             self.content.characters[name].office = office
             self.content.characters[name].office_type = eff_type
@@ -460,7 +460,7 @@ class _CharactersMixin:
             """,
             (character.name, character.office, character.office_type, office_source),
         )
-        self.conn.commit()
+        self.commit()
 
     def archive_runtime_character(self, state: GameState, name: str) -> Dict[str, object]:
         """归档运行时人物：保留 DB 记录与历史，但从正式名册/推演中移除。"""

@@ -423,6 +423,7 @@ def _settle_after_narrative(
     sanitizer = create_json_sanitizer_agent(llm_config, agno_db)
     extractor_input = ""
     extractor_output = ""
+    extraction_failed = False
     try:
         tlog("结算 3/4 抽取（模块 module）")
         extractors = {
@@ -443,26 +444,38 @@ def _settle_after_narrative(
     except Exception as exc:
         print(f"[WARN] 结算抽取失败：{exc}；本{TURN_UNIT}数值不变。")
         extracted = {}
+        extraction_failed = True
         extractor_output = f"[抽取失败] {exc}"
 
     tlog("结算 4/4 落库 + inertia/ongoing")
     _emit("stage", "落库与事项推进")
-    applied = apply_score_extraction(
-        db, state, extracted, content=content, registry=registry,
-        llm_config=llm_config, agno_db=agno_db,
-    )
-
     # 4) 月末邸报落库（下月作前文）。turn_report 给玩家看：剥掉「陛下未知者」<secret> 详细暗线，
     #    只留粗略梗概；详细版只进 extraction 留痕 + 已喂过 extractor。
-    db.save_turn_report(state, strip_secret_detail(narrative))
-    # 推演链原始输入/输出留痕，事后可追「该立的 issue 为何没立」。含 secret 详细暗线。
-    db.save_turn_extraction(
-        state,
-        decree_text=decree_text,
-        narrative=effective_narrative,  # 留痕含作弊段 + secret 详细，便于事后追「为何这么落库」
-        extractor_input=extractor_input,
-        extractor_output=extractor_output,
-    )
+    if extraction_failed:
+        applied = {"issue_summary": {"advances": []}}
+        db.save_turn_report(state, strip_secret_detail(narrative))
+        db.save_turn_extraction(
+            state,
+            decree_text=decree_text,
+            narrative=effective_narrative,
+            extractor_input=extractor_input,
+            extractor_output=extractor_output,
+        )
+    else:
+        with db.transaction():
+            applied = apply_score_extraction(
+                db, state, extracted, content=content, registry=registry,
+                llm_config=llm_config, agno_db=agno_db,
+            )
+            db.save_turn_report(state, strip_secret_detail(narrative))
+            # 推演链原始输入/输出留痕，事后可追「该立的 issue 为何没立」。含 secret 详细暗线。
+            db.save_turn_extraction(
+                state,
+                decree_text=decree_text,
+                narrative=effective_narrative,  # 留痕含作弊段 + secret 详细，便于事后追「为何这么落库」
+                extractor_input=extractor_input,
+                extractor_output=extractor_output,
+            )
 
     # 5) 章节记忆：LLM 把本回合诏书+邸报+落库效果浓缩成一段叙事章节，落 event_memories
     #    （chapter_summary）。失败有保底拼接，不抛断。

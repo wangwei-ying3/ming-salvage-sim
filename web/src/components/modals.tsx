@@ -25,6 +25,32 @@ export function formatReportText(text: string): string {
   });
 }
 
+export function renderInlineBoldText(text: string): React.ReactNode {
+  const source = String(text || "");
+  const nodes: React.ReactNode[] = [];
+  const boldPattern = /\*\*([^*]+?)\*\*/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = boldPattern.exec(source)) !== null) {
+    if (match.index > cursor) {
+      nodes.push(source.slice(cursor, match.index));
+    }
+    nodes.push(<strong key={`bold-${match.index}`}>{match[1]}</strong>);
+    cursor = match.index + match[0].length;
+  }
+
+  if (!nodes.length) return source;
+  if (cursor < source.length) {
+    nodes.push(source.slice(cursor));
+  }
+  return nodes;
+}
+
+export function renderReportText(text: string): React.ReactNode {
+  return renderInlineBoldText(formatReportText(text));
+}
+
 // 史册详文：把当月奏章里对玩家隐去的内幕（<secret>…</secret>）显出来，标成「【密】…」便于
 // 一眼看出哪些是当时未上达御前的暗线；把喂 extractor 的技术前缀（圣意亲裁/作弊强制）换成入戏
 // 的小标题，保留亲裁裁断正文（「陛下御断…朱批…」本就入戏）。再走一遍进展档位中文化。
@@ -49,7 +75,7 @@ export function ReportModal({ report, onClose }: { report: string; onClose: () =
     <FullscreenModal title="月末奏疏" subtitle="推演结果" bgClass="modal-bg-state" onClose={onClose}>
       <article className="state-document modal-scroll">
         <div className="document-section">
-          <pre className="memorial-text">{formatReportText(report)}</pre>
+          <pre className="memorial-text">{renderReportText(report)}</pre>
         </div>
       </article>
     </FullscreenModal>
@@ -85,7 +111,7 @@ export function EndingModal({ ending, onClose }: { ending: EndingPayload; onClos
             <ScrollText size={17} />
             <span>国史编纂官总评</span>
           </div>
-          <pre className="ending-summary-text">{ending.summary || "（无总评）"}</pre>
+          <pre className="ending-summary-text">{renderInlineBoldText(ending.summary || "（无总评）")}</pre>
         </section>
 
         {ending.timeline && ending.timeline.length > 0 && (
@@ -316,7 +342,7 @@ export function SecretOrderDetailBlock({ title, text, tone = "default" }: { titl
   return (
     <section className={`so-detail-block so-detail-block-${tone}`}>
       <h3>{title}</h3>
-      <p>{text}</p>
+      <p>{renderInlineBoldText(text)}</p>
     </section>
   );
 }
@@ -495,7 +521,7 @@ export function HistoryDetailView({
       {detail.report ? (
         <section className="document-section">
           <h3 className="extraction-section-title">月末邸报奏报</h3>
-          <pre className="memorial-text">{formatReportText(detail.report)}</pre>
+          <pre className="memorial-text">{renderReportText(detail.report)}</pre>
         </section>
       ) : null}
 
@@ -503,7 +529,7 @@ export function HistoryDetailView({
         && detail.extraction.narrative.trim() !== (detail.report || "").trim() ? (
         <section className="document-section">
           <h3 className="extraction-section-title">邸报详文 · 起居注（含当时未上达御前的内幕）</h3>
-          <pre className="memorial-text">{formatDetailNarrative(detail.extraction.narrative)}</pre>
+          <pre className="memorial-text">{renderInlineBoldText(formatDetailNarrative(detail.extraction.narrative))}</pre>
         </section>
       ) : null}
 
@@ -554,7 +580,7 @@ export function StateModal({ state }: { state: GameState }) {
     <article className="state-document modal-scroll">
       <section className="document-section">
         {report
-          ? <pre className="memorial-text">{formatReportText(report)}</pre>
+          ? <pre className="memorial-text">{renderReportText(report)}</pre>
           : <div className="empty-note">尚无上月奏报。</div>}
       </section>
     </article>
@@ -715,9 +741,9 @@ export function ChatModal({
               <div key={o.id} className="secret-order-item">
                 <div className="secret-order-title">{o.title}</div>
                 <div className="secret-order-meta">第 {o.year_issued} 年 {o.period_issued} 月下令</div>
-                {o.content && <div className="secret-order-content">{o.content}</div>}
-                {o.sim_note && <div className="secret-order-content"><b>月度动向：</b>{o.sim_note}</div>}
-                {o.result && <div className="secret-order-content"><b>承办回报：</b>{o.result}</div>}
+                {o.content && <div className="secret-order-content">{renderInlineBoldText(o.content)}</div>}
+                {o.sim_note && <div className="secret-order-content"><b>月度动向：</b>{renderInlineBoldText(o.sim_note)}</div>}
+                {o.result && <div className="secret-order-content"><b>承办回报：</b>{renderInlineBoldText(o.result)}</div>}
               </div>
             ))}
           </div>
@@ -729,7 +755,7 @@ export function ChatModal({
           {displayMessages.map((message, index) => (
             <div className={`chat-message ${message.role} ${message.pending ? "pending" : ""}`} key={`${message.role}-${index}-${message.content}`}>
               <span>{message.role === "user" ? "朕" : minister.name}</span>
-              <p>{message.content}</p>
+              <p>{renderInlineBoldText(message.content)}</p>
             </div>
           ))}
           {busy && !streamingMinisterMessage && (
@@ -921,7 +947,7 @@ export function EdictModal({
         {report ? (
           <section className="edict-gazette">
             <h2>月末奏章</h2>
-            <pre>{formatReportText(report)}</pre>
+            <pre>{renderReportText(report)}</pre>
           </section>
         ) : null}
       </div>

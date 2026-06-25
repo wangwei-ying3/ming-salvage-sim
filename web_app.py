@@ -8,23 +8,31 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import io
 import json
+import logging
 import os
 import queue
 import random
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import threading
 import time
+import unicodedata
 import uuid
+from pathlib import Path
 from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from PIL import Image, UnidentifiedImageError
+from PIL.Image import DecompressionBombError
 from pydantic import BaseModel, Field
 
 from ming_sim.constants import ROOT_DIR
@@ -72,6 +80,11 @@ UPLOAD_PORTRAIT_DIR = user_data_path("uploads", "portraits")
 CUSTOM_PORTRAIT_PREFIX = "custom:"
 ALLOWED_PORTRAIT_TYPES = {"image/png", "image/jpeg", "image/webp"}
 MAX_PORTRAIT_BYTES = 8 * 1024 * 1024  # 8MB 上限
+PORTRAIT_CHUNK_BYTES = 1024 * 1024
+MAX_PORTRAIT_DIMENSION = 4096
+MAX_PORTRAIT_PIXELS = MAX_PORTRAIT_DIMENSION * MAX_PORTRAIT_DIMENSION
+
+logger = logging.getLogger(__name__)
 
 _AGNO_SKILL_DESCRIPTIONS = {
     "memory-recall": "查阅既往邸报与起居注，补足旧事来龙去脉。",
@@ -417,7 +430,7 @@ def _verify_llm_configs_or_raise(config: LLMConfig) -> None:
         advanced_thinking_level=config.advanced_thinking_level,
     )
     try:
-        verify_llm_available(advanced_config)
+        verify_llm_available(advanced_config, enable_thinking=True)
     except LLMUnavailable as e:
         raise HTTPException(status_code=400, detail=_llm_error_detail(e, "高级模型连通性检查失败：")) from None
     except Exception as e:  # noqa: BLE001
@@ -563,6 +576,7 @@ class WebGame:
         random.seed(int(os.environ.get("MING_SIM_SEED", "7")))
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
         self.db_path = db_path
+        self._state_lock = threading.RLock()
         if fresh:
             _delete_sqlite_db_files_or_raise(db_path)
         self.session = GameSession(db_path, llm_config)
@@ -613,47 +627,159 @@ class WebGame:
     def save_to(self, name: str) -> Dict[str, Any]:
         safe = self._safe_save_name(name)
         target = os.path.join(self.saves_dir(), f"{safe}.db")
-        self.db.backup_to(target)
+        with self._state_lock_guard():
+            self.db.backup_to(target)
         return {"name": safe, "path": target}
 
     def delete_save(self, name: str) -> None:
         safe = self._safe_save_name(name)
         target = os.path.join(self.saves_dir(), f"{safe}.db")
-        if not os.path.isfile(target):
-            raise HTTPException(status_code=404, detail="存档不存在。")
-        os.remove(target)
+        with self._state_lock_guard():
+            if not os.path.isfile(target):
+                raise HTTPException(status_code=404, detail="Save does not exist.")
+            os.remove(target)
 
     def reset_game(self) -> None:
-        """全清主 DB：关连接 → 删 sqlite 主/wal/shm → 重建空 session。
-        存档目录不动。"""
-        try:
-            self.session.close()
-        except Exception:
-            pass
-        _delete_sqlite_db_files_or_raise(self.db_path)
-        self._rebuild_session(self.session.llm_config)
+        """Reset the live DB and rebuild the session under the shared state lock."""
+        with self._state_lock_guard():
+            llm_config = self.session.llm_config
+            try:
+                self.session.close()
+            except Exception:
+                pass
+            _delete_sqlite_db_files_or_raise(self.db_path)
+            self._rebuild_session(llm_config)
 
     def load_save(self, name: str) -> None:
-        """从存档热替换主 DB：备份当前 → 拷源到主 DB → 重建 session。"""
+        """Atomically restore a save DB into the live DB."""
         safe = self._safe_save_name(name)
         source = os.path.join(self.saves_dir(), f"{safe}.db")
         if not os.path.isfile(source):
-            raise HTTPException(status_code=404, detail="存档不存在。")
-        # 先关闭当前 session 的 DB 连接，避免 Windows/某些平台上的 file lock。
-        try:
-            self.session.close()
-        except Exception:
-            pass
-        # 用 sqlite backup 把存档拷回主路径
-        import sqlite3 as _sqlite3
-        src_conn = _sqlite3.connect(source)
-        dst_conn = _sqlite3.connect(self.db_path)
+            raise HTTPException(status_code=404, detail="Save does not exist.")
+        with self._state_lock_guard():
+            candidate_path = self._load_save_temp_db_path("candidate")
+            rollback_path = self._load_save_temp_db_path("rollback")
+            candidate_available = False
+            rollback_available = False
+            llm_config = self.session.llm_config
+            try:
+                self._backup_sqlite_file(source, candidate_path)
+                candidate_available = True
+                self._validate_candidate_save_db(candidate_path)
+
+                self.db.backup_to(rollback_path)
+                rollback_available = True
+
+                try:
+                    self.session.close()
+                except Exception:
+                    pass
+
+                self._cleanup_sqlite_sidecars(self.db_path)
+                try:
+                    os.replace(candidate_path, self.db_path)
+                    candidate_available = False
+                except OSError as exc:
+                    self._restore_rollback_db(rollback_path, rollback_available)
+                    rollback_available = False
+                    raise HTTPException(status_code=500, detail="Save replacement failed; current progress was kept.") from exc
+
+                try:
+                    self._rebuild_session(llm_config)
+                except Exception as exc:
+                    self._restore_rollback_db(rollback_path, rollback_available)
+                    rollback_available = False
+                    try:
+                        self._rebuild_session(llm_config)
+                    except Exception:
+                        logger.exception("Failed to rebuild session after rolling back failed save load.")
+                    raise HTTPException(status_code=500, detail="Save loaded but session rebuild failed; rolled back to previous DB.") from exc
+            finally:
+                if candidate_available:
+                    self._cleanup_sqlite_db_file(candidate_path)
+                if rollback_available:
+                    self._cleanup_sqlite_db_file(rollback_path)
+
+    def _state_lock_guard(self):
+        lock = getattr(self, "_state_lock", None)
+        if lock is None:
+            lock = threading.RLock()
+            self._state_lock = lock
+        return lock
+
+    def _load_save_temp_db_path(self, kind: str) -> str:
+        db_dir = os.path.abspath(os.path.dirname(self.db_path) or ".")
+        os.makedirs(db_dir, exist_ok=True)
+        base_name = Path(self.db_path).name
+        return os.path.join(db_dir, f"{base_name}.load-{kind}-{uuid.uuid4().hex}.db")
+
+    def _backup_sqlite_file(self, source_path: str, target_path: str) -> None:
+        os.makedirs(os.path.dirname(target_path) or ".", exist_ok=True)
+        self._cleanup_sqlite_db_file(target_path)
+        src_conn = sqlite3.connect(source_path)
+        dst_conn = sqlite3.connect(target_path)
         try:
             src_conn.backup(dst_conn)
+        except sqlite3.Error as exc:
+            self._cleanup_sqlite_db_file(target_path)
+            raise HTTPException(status_code=400, detail=f"Save database could not be read: {exc}") from exc
         finally:
             src_conn.close()
             dst_conn.close()
-        self._rebuild_session(self.session.llm_config)
+
+    def _validate_candidate_save_db(self, db_path: str) -> None:
+        try:
+            conn = sqlite3.connect(f"file:{Path(db_path).as_posix()}?mode=ro", uri=True)
+            try:
+                integrity = conn.execute("PRAGMA integrity_check").fetchone()
+                if not integrity or str(integrity[0]).lower() != "ok":
+                    raise HTTPException(status_code=400, detail="Save database integrity check failed.")
+                required_tables = {"game_state", "metrics", "kv_store", "characters"}
+                rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+                existing = {str(row[0]) for row in rows}
+                missing = sorted(required_tables - existing)
+                if missing:
+                    raise HTTPException(status_code=400, detail=f"Save schema is incomplete: {', '.join(missing)}")
+                state_row = conn.execute(
+                    "SELECT year, period, turn, turn_phase FROM game_state WHERE id = 1"
+                ).fetchone()
+                if state_row is None:
+                    raise HTTPException(status_code=400, detail="Save is missing game state row.")
+            finally:
+                conn.close()
+        except HTTPException:
+            raise
+        except sqlite3.Error as exc:
+            raise HTTPException(status_code=400, detail=f"Save database validation failed: {exc}") from exc
+
+    def _restore_rollback_db(self, rollback_path: str, rollback_available: bool) -> None:
+        if not rollback_available or not os.path.isfile(rollback_path):
+            return
+        try:
+            self._cleanup_sqlite_sidecars(self.db_path)
+            os.replace(rollback_path, self.db_path)
+        except OSError:
+            logger.exception("Failed to restore rollback database after load_save failure.")
+            raise
+
+    def _cleanup_sqlite_sidecars(self, db_path: str) -> None:
+        for suffix in ("-wal", "-shm", "-journal"):
+            sidecar = f"{db_path}{suffix}"
+            try:
+                os.remove(sidecar)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                logger.warning("ENV_BLOCKER: failed to remove SQLite sidecar %s", sidecar, exc_info=True)
+
+    def _cleanup_sqlite_db_file(self, db_path: str) -> None:
+        for path in (db_path, f"{db_path}-wal", f"{db_path}-shm", f"{db_path}-journal"):
+            try:
+                os.remove(path)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                logger.warning("ENV_BLOCKER: failed to remove temporary SQLite file %s", path, exc_info=True)
 
     def _rebuild_session(self, llm_config: LLMConfig) -> None:
         """用新 llm_config（或换完 DB 后）重建 GameSession + 内存缓存。"""
@@ -4037,15 +4163,143 @@ async def api_set_llm_config(request: LLMConfigRequest) -> Dict[str, Any]:
 # ── 自定义立绘上传/读取 ──────────────────────────────────────────────────────
 # content_type → 存盘扩展名。一人一图，上传新图会顶掉旧扩展名的文件。
 _PORTRAIT_EXT = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
+_PORTRAIT_FORMAT_EXT = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp"}
+_PORTRAIT_SAVE_FORMAT = {"PNG": "PNG", "JPEG": "JPEG", "WEBP": "WEBP"}
+_PORTRAIT_EXTS = tuple(_PORTRAIT_FORMAT_EXT.values())
+
+
+def _portrait_storage_key(name: str) -> str:
+    normalized = unicodedata.normalize("NFKC", name or "")
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _portrait_upload_dir(create: bool = False) -> Path:
+    upload_dir = Path(UPLOAD_PORTRAIT_DIR)
+    if create:
+        upload_dir.mkdir(parents=True, exist_ok=True)
+    return upload_dir.resolve()
+
+
+def _safe_portrait_path(storage_key: str, ext: str) -> Path:
+    if len(storage_key) != 64 or any(ch not in "0123456789abcdef" for ch in storage_key):
+        raise HTTPException(status_code=400, detail="非法头像存储键")
+    if ext not in _PORTRAIT_EXTS:
+        raise HTTPException(status_code=400, detail="非法头像格式")
+    upload_dir = _portrait_upload_dir(create=True)
+    target = (upload_dir / f"{storage_key}.{ext}").resolve()
+    try:
+        target.relative_to(upload_dir)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="非法头像路径") from exc
+    return target
+
+
+def _portrait_temp_path(storage_key: str, suffix: str = "tmp") -> Path:
+    upload_dir = _portrait_upload_dir(create=True)
+    target = (upload_dir / f".{storage_key}.{uuid.uuid4().hex}.{suffix}").resolve()
+    try:
+        target.relative_to(upload_dir)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="非法头像路径") from exc
+    return target
+
+
+def _custom_portrait_paths(storage_key: str) -> List[Path]:
+    return [_safe_portrait_path(storage_key, ext) for ext in _PORTRAIT_EXTS]
+
+
+def _find_custom_portrait_file(storage_key: str) -> Optional[Path]:
+    found: List[Path] = []
+    for path in _custom_portrait_paths(storage_key):
+        if path.exists():
+            found.append(path)
+    if not found:
+        return None
+    return max(found, key=lambda path: path.stat().st_mtime_ns)
+
+
+async def _read_upload_limited(file: UploadFile, max_bytes: int = MAX_PORTRAIT_BYTES) -> bytes:
+    data = bytearray()
+    while True:
+        chunk = await file.read(PORTRAIT_CHUNK_BYTES)
+        if not chunk:
+            break
+        data.extend(chunk)
+        if len(data) > max_bytes:
+            raise HTTPException(status_code=413, detail="图片过大（上限 8MB）")
+    return bytes(data)
+
+
+def _validate_and_normalize_portrait(data: bytes, content_type: str) -> tuple[str, bytes]:
+    if content_type not in ALLOWED_PORTRAIT_TYPES:
+        raise HTTPException(status_code=400, detail="仅支持 PNG/JPEG/WebP 图片")
+    if not data:
+        raise HTTPException(status_code=400, detail="文件为空")
+
+    try:
+        with Image.open(io.BytesIO(data)) as image:
+            image.verify()
+        with Image.open(io.BytesIO(data)) as image:
+            image.load()
+            image_format = (image.format or "").upper()
+            ext = _PORTRAIT_FORMAT_EXT.get(image_format)
+            if ext is None:
+                raise HTTPException(status_code=400, detail="仅支持 PNG/JPEG/WebP 图片")
+
+            width, height = image.size
+            if (
+                width <= 0
+                or height <= 0
+                or width > MAX_PORTRAIT_DIMENSION
+                or height > MAX_PORTRAIT_DIMENSION
+                or width * height > MAX_PORTRAIT_PIXELS
+            ):
+                raise HTTPException(status_code=400, detail="图片尺寸过大")
+
+            has_alpha = image.mode in {"RGBA", "LA"} or "transparency" in image.info
+            output_mode = "RGBA" if image_format in {"PNG", "WEBP"} and has_alpha else "RGB"
+            clean = image.convert(output_mode)
+            out = io.BytesIO()
+            save_kwargs: Dict[str, Any] = {}
+            if image_format == "JPEG":
+                save_kwargs["quality"] = 90
+            elif image_format == "WEBP":
+                save_kwargs["quality"] = 90
+                save_kwargs["method"] = 6
+            clean.save(out, format=_PORTRAIT_SAVE_FORMAT[image_format], **save_kwargs)
+    except HTTPException:
+        raise
+    except (UnidentifiedImageError, DecompressionBombError, OSError, SyntaxError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="图片文件无效或已损坏") from exc
+
+    normalized = out.getvalue()
+    if not normalized:
+        raise HTTPException(status_code=400, detail="图片文件无效或已损坏")
+    if len(normalized) > MAX_PORTRAIT_BYTES:
+        raise HTTPException(status_code=400, detail="图片编码后过大")
+    return ext, normalized
+
+
+def _write_portrait_temp(storage_key: str, data: bytes) -> Path:
+    temp_path = _portrait_temp_path(storage_key)
+    try:
+        with open(temp_path, "wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+    except Exception:
+        try:
+            temp_path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("failed to clean portrait temp file: %s", temp_path)
+        raise
+    return temp_path
 
 
 def _find_portrait_file(name: str) -> Optional[str]:
     """找该人物已存在的自定义立绘文件（任一扩展名），无则 None。"""
-    for ext in _PORTRAIT_EXT.values():
-        path = os.path.join(UPLOAD_PORTRAIT_DIR, f"{name}.{ext}")
-        if os.path.exists(path):
-            return path
-    return None
+    path = _find_custom_portrait_file(_portrait_storage_key(name))
+    return str(path) if path is not None else None
 
 
 @app.post("/api/consorts/{name}/portrait")
@@ -4054,23 +4308,62 @@ async def api_upload_portrait(name: str, file: UploadFile = File(...)) -> Dict[s
     character = get_game().find_character(name)
     if character is None:
         raise HTTPException(status_code=404, detail="未找到该人物")
-    ext = _PORTRAIT_EXT.get(file.content_type or "")
-    if ext is None:
-        raise HTTPException(status_code=400, detail="仅支持 PNG/JPEG/WebP 图片")
-    data = await file.read()
-    if not data:
-        raise HTTPException(status_code=400, detail="文件为空")
-    if len(data) > MAX_PORTRAIT_BYTES:
-        raise HTTPException(status_code=400, detail="图片过大（上限 8MB）")
-    os.makedirs(UPLOAD_PORTRAIT_DIR, exist_ok=True)
-    # 先清掉该人物的旧图（可能扩展名不同），再写新图。
-    old = _find_portrait_file(name)
-    if old is not None:
-        os.remove(old)
-    with open(os.path.join(UPLOAD_PORTRAIT_DIR, f"{name}.{ext}"), "wb") as fh:
-        fh.write(data)
-    get_game().set_custom_portrait(name, f"{CUSTOM_PORTRAIT_PREFIX}{name}")
-    return {"name": name, "portrait_id": f"{CUSTOM_PORTRAIT_PREFIX}{name}"}
+    data = await _read_upload_limited(file)
+    ext, normalized = _validate_and_normalize_portrait(data, file.content_type or "")
+    storage_key = _portrait_storage_key(name)
+    old_path = _find_custom_portrait_file(storage_key)
+    final_path = _safe_portrait_path(storage_key, ext)
+    temp_path: Optional[Path] = None
+    backup_path: Optional[Path] = None
+    portrait_id = f"{CUSTOM_PORTRAIT_PREFIX}{name}"
+
+    try:
+        temp_path = _write_portrait_temp(storage_key, normalized)
+        if old_path is not None and old_path.exists():
+            backup_path = _portrait_temp_path(storage_key, "bak")
+            os.replace(old_path, backup_path)
+        os.replace(temp_path, final_path)
+        temp_path = None
+        get_game().set_custom_portrait(name, portrait_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        if temp_path is not None:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                logger.warning("failed to clean portrait temp file: %s", temp_path)
+        if backup_path is not None:
+            try:
+                final_path.unlink(missing_ok=True)
+            except OSError:
+                logger.warning("failed to remove failed portrait file: %s", final_path)
+            try:
+                if backup_path.exists():
+                    restore_target = old_path or final_path
+                    os.replace(backup_path, restore_target)
+            except OSError:
+                logger.warning("failed to restore previous portrait file: %s", backup_path)
+        else:
+            try:
+                final_path.unlink(missing_ok=True)
+            except OSError:
+                logger.warning("failed to remove failed portrait file: %s", final_path)
+        raise HTTPException(status_code=500, detail="头像保存失败") from exc
+
+    if backup_path is not None:
+        try:
+            backup_path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("failed to clean portrait backup file: %s", backup_path)
+    for stale_path in _custom_portrait_paths(storage_key):
+        if stale_path != final_path and stale_path.exists():
+            try:
+                stale_path.unlink()
+            except OSError:
+                logger.warning("failed to clean stale portrait file: %s", stale_path)
+
+    return {"name": name, "portrait_id": portrait_id}
 
 
 @app.delete("/api/consorts/{name}/portrait")
@@ -4078,11 +4371,14 @@ async def api_delete_portrait(name: str) -> Dict[str, Any]:
     character = get_game().find_character(name)
     if character is None:
         raise HTTPException(status_code=404, detail="未找到该人物")
-    old = _find_portrait_file(name)
-    if old is not None:
-        os.remove(old)
-    # 复位 portrait_id：清空 → 前端回落到池图（add/seed 时会按 office_type 再分配）。
+    storage_key = _portrait_storage_key(name)
+    paths = [path for path in _custom_portrait_paths(storage_key) if path.exists()]
     get_game().set_custom_portrait(name, "")
+    for path in paths:
+        try:
+            path.unlink()
+        except OSError:
+            logger.warning("failed to delete custom portrait file: %s", path)
     return {"name": name, "portrait_id": ""}
 
 
@@ -4100,7 +4396,10 @@ async def api_set_court_layout(body: Dict[str, Any]) -> Dict[str, Any]:
 
 @app.get("/portraits/custom/{name}")
 async def api_get_portrait(name: str):
-    path = _find_portrait_file(name)
+    character = get_game().find_character(name)
+    if character is None or not str(getattr(character, "portrait_id", "")).startswith(CUSTOM_PORTRAIT_PREFIX):
+        raise HTTPException(status_code=404, detail="无自定义立绘")
+    path = _find_custom_portrait_file(_portrait_storage_key(name))
     if path is None:
         raise HTTPException(status_code=404, detail="无自定义立绘")
     return FileResponse(path)

@@ -13,8 +13,22 @@ from typing import Callable, Dict, List, Optional
 from agno.agent import Agent
 
 from ming_sim.agents import parse_agent_json, run_agent_stream_text, run_agent_text
+from ming_sim.constants import (
+    ARMY_FIELD_ALIASES,
+    ARMY_QUANTITY_FIELDS,
+    ARMY_SCORE_FIELDS,
+    ARMY_TEXT_FIELDS,
+    FISCAL_QUANTITY_FIELDS,
+    FISCAL_SCORE_FIELDS,
+    POWER_FIELD_ALIASES,
+    REGION_FIELD_ALIASES,
+    REGION_QUANTITY_FIELDS,
+    REGION_SCORE_FIELDS,
+    REGION_TEXT_FIELDS,
+)
 from ming_sim.context import historical_anchor_for_month, victory_status
 from ming_sim.db import GameDB
+from ming_sim.exceptions import LLMContractError
 from ming_sim.issues import gather_candidate_events, issue_to_payload
 from ming_sim.models import GameState
 from ming_sim.token_stats import tlog
@@ -793,6 +807,138 @@ def _canonicalize_extraction(data: Dict[str, object]) -> Dict[str, object]:
     return canonical
 
 
+_MAPPING_FIELDS = {
+    "metric_delta",
+    "faction_delta",
+    "class_delta",
+    "region_delta",
+    "army_delta",
+    "arms_changes",
+    "power_updates",
+    "world_advance",
+}
+
+_LIST_FIELDS = {
+    "economy_moves",
+    "new_armies",
+    "issue_advances",
+    "new_issues",
+    "cancels",
+    "close_issues",
+    "fiscal_changes",
+    "fiscal_creates",
+    "fiscal_removes",
+    "office_changes",
+    "character_changes",
+    "appointments",
+    "character_status_changes",
+    "character_power_changes",
+    "secret_order_updates",
+    "secret_order_closes",
+}
+
+_LIST_OF_MAPPING_FIELDS = _LIST_FIELDS - {"cancels", "close_issues"}
+
+_REGION_DELTA_FIELDS = set(
+    REGION_SCORE_FIELDS
+    + REGION_QUANTITY_FIELDS
+    + REGION_TEXT_FIELDS
+    + FISCAL_SCORE_FIELDS
+    + FISCAL_QUANTITY_FIELDS
+) | {"reason"}
+_ARMY_DELTA_FIELDS = set(ARMY_SCORE_FIELDS + ARMY_QUANTITY_FIELDS + ARMY_TEXT_FIELDS) | {"reason"}
+_POWER_UPDATE_FIELDS = {"leverage", "military_strength", "supply", "reason"}
+
+
+def _llm_contract_error(scope: str, message: str) -> None:
+    raise LLMContractError(f"{scope}: {message}")
+
+
+def _require_mapping(value: object, scope: str) -> Dict[str, object]:
+    if not isinstance(value, dict):
+        _llm_contract_error(scope, "expected object")
+    return value
+
+
+def _require_list(value: object, scope: str) -> List[object]:
+    if not isinstance(value, list):
+        _llm_contract_error(scope, "expected array")
+    return value
+
+
+def _validate_delta_mapping(
+    value: object,
+    *,
+    scope: str,
+    aliases: Dict[str, str],
+    allowed_fields: set[str],
+) -> None:
+    container = _require_mapping(value, scope)
+    for item_id, raw_delta in container.items():
+        item_scope = f"{scope}.{item_id}"
+        delta = _require_mapping(raw_delta, item_scope)
+        for raw_field in delta:
+            field = aliases.get(str(raw_field).strip(), str(raw_field).strip())
+            if field not in allowed_fields:
+                _llm_contract_error(item_scope, f"unknown nested field {raw_field!r}")
+
+
+def validate_structured_extraction_payload(
+    payload: Dict[str, object],
+    *,
+    module: str,
+) -> Dict[str, object]:
+    """Fail closed before sanitizer/reducer accepts LLM structured payloads."""
+    if module not in MODULE_FIELDS:
+        _llm_contract_error("structured extraction", f"unknown module {module!r}")
+    if not isinstance(payload, dict):
+        _llm_contract_error("structured extraction", "expected top-level object")
+
+    canonical = _canonicalize_extraction(payload)
+    allowed_top_level = MODULE_FIELDS[module]
+    unknown_top_level = sorted(set(canonical) - allowed_top_level)
+    if unknown_top_level:
+        _llm_contract_error(
+            "structured extraction",
+            f"unknown top-level field(s): {', '.join(unknown_top_level)}",
+        )
+
+    for key, value in canonical.items():
+        if key in _MAPPING_FIELDS:
+            _require_mapping(value, key)
+        elif key in _LIST_FIELDS:
+            items = _require_list(value, key)
+            if key in _LIST_OF_MAPPING_FIELDS:
+                for index, item in enumerate(items):
+                    _require_mapping(item, f"{key}[{index}]")
+        elif key == "emperor_fate" and value is not None and not isinstance(value, str):
+            _llm_contract_error(key, "expected string or null")
+
+    if "region_delta" in canonical:
+        _validate_delta_mapping(
+            canonical["region_delta"],
+            scope="region_delta",
+            aliases=REGION_FIELD_ALIASES,
+            allowed_fields=_REGION_DELTA_FIELDS,
+        )
+    if "army_delta" in canonical:
+        _validate_delta_mapping(
+            canonical["army_delta"],
+            scope="army_delta",
+            aliases=ARMY_FIELD_ALIASES,
+            allowed_fields=_ARMY_DELTA_FIELDS,
+        )
+    if "power_updates" in canonical:
+        _validate_delta_mapping(
+            canonical["power_updates"],
+            scope="power_updates",
+            aliases=POWER_FIELD_ALIASES,
+            allowed_fields=_POWER_UPDATE_FIELDS,
+        )
+
+    return payload
+
+
 def _localized_item_fields(value: object, parent_key: str = "") -> object:
     if isinstance(value, list):
         return [_localized_item_fields(item, parent_key) for item in value]
@@ -1262,6 +1408,7 @@ def extract_scores_by_modules_with_agno(
             with sanitizer_lock:
                 cleaned = run_agent_text(sanitizer, raw, tag=f"sanitizer/{module}")
             parsed = parse_agent_json(cleaned, f"结算抽取-{module}（sanitizer）")
+        validate_structured_extraction_payload(parsed, module=module)
         return _sanitize_module_output(module, parsed, fiscal_config=fiscal_cfg)
 
     module_outputs: Dict[str, Dict[str, object]] = {}

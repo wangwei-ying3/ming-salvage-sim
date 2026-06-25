@@ -28,10 +28,16 @@ data/
 *.db
 *.sqlite
 *.sqlite3
+*.db-journal
+*-journal
+tmp*/
+scripts/runs/
 
 # OS / editor noise
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
 
 # Local AI assistant workspace
 .claude/
@@ -46,7 +52,11 @@ web/public/portraits/_original_before_cutout
 .coverage
 htmlcov/
 output
+/.test_avatar_upload/
+/.tmp_pytest/
+/test_avatar_upload_tmp/
 # Frontend
+node_modules/
 web/node_modules/
 web/dist/
 web/release/
@@ -55,7 +65,7 @@ web/tsconfig.tsbuildinfo
 
 # Portrait local backups (rembg 抠图前的 RGB 原图，git 历史里有，无需入库)
 web/public/portraits/_backup_rgb/
-output/imagegen/bg_ending.png
 output/imagegen/ending_timeline_scroll.png
-web/public/bg_ending.webp
 web/public/ending_timeline_scroll.webp
+
+pytest-cache-files-*/

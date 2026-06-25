@@ -309,7 +309,7 @@ class _RegionsMixin:
                 ):
                     extra = self._apply_on_restore(state, region_id, event, edict_id, actor, reason)
                     changes.extend(extra)
-        self.conn.commit()
+        self.commit()
         return changes
 
     def _apply_on_restore(
@@ -453,4 +453,4 @@ class _RegionsMixin:
                 "WHERE name = ? AND region_id = ?",
                 (sat, lev, name.strip(), region_id.strip()),
             )
-        self.conn.commit()
+        self.commit()
