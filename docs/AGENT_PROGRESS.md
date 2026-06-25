@@ -984,3 +984,100 @@
 - `docs/AGENT_PROGRESS.md`
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
+
+## Session 2026-06-25 08:46 Local
+
+### Goal
+- Goal 10A: audit save/load restore DB replacement and session rebuild atomicity without source changes, gameplay changes, LLM calls, or commits.
+
+### What I inspected
+- `web_app.py` `WebGame.save_to()`, `WebGame.load_save()`, `WebGame._rebuild_session()`, menu load route, in-game save/load routes, save scanning, and main DB path resolution.
+- `ming_sim/db/base.py` `GameDB.backup_to()`.
+- `ming_sim/session.py` `GameSession.__init__()`, `begin_turn()`, `auto_save()`, and `close()`.
+- `tests/` save/load coverage search.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`.
+
+### Bugs found
+- [High] `web_app.py:648`: `load_save()` closes the current session, then copies the selected save directly into the main DB path via SQLite backup, with no temporary main DB, no `os.replace`, and no rollback backup if copy or rebuild fails.
+- [High] `web_app.py:668` / `web_app.py:670`: `_rebuild_session()` runs after the main DB has already been overwritten; if LLM verification, `GameSession` construction, schema/state loading, or `begin_turn()` fails, the old live session is closed and the main DB may already be replaced.
+- [Medium] `web_app.py:651` / `web_app.py:661`: candidate save files are only checked for existence and are not validated with a separate connection, `PRAGMA integrity_check`, required table checks, or game-state checks before being copied into the main DB.
+- [Medium] `web_app.py:625`, `web_app.py:648`, `web_app.py:2709`, `web_app.py:2740`, `web_app.py:3958`: save/load/reset/session replacement paths have no shared process lock, so concurrent load/save/reset/chat/turn operations can race on the same DB path and `web_game.session`.
+- [Low] `tests/`: no existing tests cover save-load success, corrupt DB rejection, rebuild failure rollback, copy failure rollback, concurrent load, or DB/session consistency after failure.
+
+### Changes made
+- No source changes.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: recorded Goal 10A audit findings and Goal 10B patch direction.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `rg -n "load_save|save|restore|backup|autosave|_rebuild_session|rebuild|GameSession|db_path|save_path|copyfile|copy2|os\.replace|shutil\.copy|sqlite|database" web_app.py ming_sim tests` | PASS | Located save/load routes, DB paths, backup calls, and session rebuild paths. |
+| `rg -n "@app\.(get|post|delete).*save|@app\.(get|post|delete).*load|@app\.(get|post|delete).*backup|@app\.(get|post|delete).*restore|save|load" web_app.py` | PASS | Located menu and in-game save/load endpoints. |
+| `rg -n "Lock\(|RLock|asyncio\.Lock|threading\.Lock|load_save|save_to|backup_to|_rebuild_session|sqlite backup|os\.replace|rollback|BEGIN|transaction|PRAGMA integrity_check|quick_check" web_app.py ming_sim tests` | PASS | Found no shared save/load lock, no integrity-check validation, and no atomic replace in save-load path. |
+| `rg -n "load_save|api_load_save|api_menu_load_save|save_to|api_create_save|backup_to|_rebuild_session|invalid DB|corrupt|rollback|concurrent|saves" tests` | PASS | Confirmed no save-load atomicity/failure-mode test coverage. |
+| `git status --short` | PASS | Shows existing Goal 9B changes plus docs updated by this audit. |
+
+### Current status
+- RISK_FOUND: audit completed; no source code was modified and no real LLM API was called.
+
+### Remaining blockers
+- Goal 10B should implement candidate DB validation, temp DB restore, atomic main DB replacement, rollback, session rebuild ordering, and regression tests.
+- Existing uncommitted Goal 9B/cleanup source, dependency, test, and docs changes remain in the working tree.
+
+### Next recommended action
+- Execute Goal 10B as a scoped patch with tests for corrupt save, copy failure, rebuild failure, successful load, and concurrent load/save behavior.
+
+### Files changed this session
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
+## Session 2026-06-25 09:38 Local
+
+### Goal
+- Goal 10B: implement the minimal save-load atomicity fix with candidate validation, live DB rollback, shared save/load/reset locking, regression tests, and docs.
+
+### What I inspected
+- `web_app.py` `WebGame.save_to()`, `delete_save()`, `reset_game()`, `load_save()`, `_rebuild_session()`, imports, and DB path handling.
+- `ming_sim/db/base.py` `GameDB.backup_to()` behavior for live DB backups.
+- `ming_sim/db/schema.py` and `ming_sim/db/state.py` for minimal save DB validation fields.
+- Existing `tests/` patterns and local temp/SQLite behavior.
+
+### Bugs found
+- [High] `web_app.py`: existing `load_save()` closed the current session and wrote a selected save directly into the live DB before rebuild, with no rollback if candidate copy or `_rebuild_session()` failed.
+- [Medium] `web_app.py`: save DB candidates were not checked with `PRAGMA integrity_check`, required tables, or a main `game_state` row before replacing the live DB.
+- [Medium] `web_app.py`: save/load/delete-save/reset were not serialized with a shared process lock.
+- [Low] Local environment: repo-local SQLite probe files hit `sqlite3.OperationalError: disk I/O error`, and recursive cleanup of ignored probe directories was blocked by tool policy; pytest itself passes using system temp paths.
+
+### Changes made
+- `web_app.py`: added `sqlite3` import, `WebGame._state_lock`, `_state_lock_guard()`, candidate/rollback temp DB helpers, candidate validation, rollback restore, and best-effort SQLite sidecar/temp cleanup.
+- `web_app.py`: changed `load_save()` to backup the selected save into a candidate DB, validate it, backup the current live DB to rollback, replace the live DB with `os.replace()`, and roll back if replacement or session rebuild fails.
+- `web_app.py`: wrapped `save_to()`, `delete_save()`, `reset_game()`, and `load_save()` with the shared state lock.
+- `tests/test_save_load_atomicity.py`: added regression coverage for corrupt saves, validation failure without session close, rebuild-failure rollback, successful load/rebuild, and lock entry.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: recorded Goal 10B fix, tests, and residual broader concurrency follow-up.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `rg -n "def db|def load_save|def save_to|def delete_save|def reset_game|def _rebuild_session|class WebGame|game_state|kv_store" web_app.py ming_sim/db tests` | PASS | Located save/load implementation and schema/state validation targets. |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_save_load_atomicity.py -q` | FAIL | Initial TDD run failed against old behavior; after patch, rerun passed. |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_save_load_atomicity.py -q` | PASS | `5 passed, 1 warning`; warning is local `.pytest_cache` WinError 5. |
+| `.\.venv\Scripts\python.exe -m pytest -q` | PASS | `66 passed, 2 warnings`; warnings are Starlette TestClient deprecation and local `.pytest_cache` WinError 5. |
+| `git diff -- web_app.py` | PASS | Reviewed the save/load/reset scoped diff after restoring an encoding-safe copy of `web_app.py`. |
+
+### Current status
+- PASS: Goal 10B save-load atomicity fix is implemented and the full Python test suite passes.
+
+### Remaining blockers
+- Broader turn/chat mutation paths are not yet comprehensively serialized under the new state lock; tracked as a follow-up outside Goal 10B scope.
+- Local `.pytest_cache` creation still reports WinError 5, but tests pass and this is an environment/cache permission issue.
+
+### Next recommended action
+- Review the Goal 10B diff and commit with the existing Goal 9B work when ready.
+
+### Files changed this session
+- `web_app.py`
+- `tests/test_save_load_atomicity.py`
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`

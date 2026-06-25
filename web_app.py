@@ -17,6 +17,7 @@ import queue
 import random
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -575,6 +576,7 @@ class WebGame:
         random.seed(int(os.environ.get("MING_SIM_SEED", "7")))
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
         self.db_path = db_path
+        self._state_lock = threading.RLock()
         if fresh:
             _delete_sqlite_db_files_or_raise(db_path)
         self.session = GameSession(db_path, llm_config)
@@ -625,47 +627,159 @@ class WebGame:
     def save_to(self, name: str) -> Dict[str, Any]:
         safe = self._safe_save_name(name)
         target = os.path.join(self.saves_dir(), f"{safe}.db")
-        self.db.backup_to(target)
+        with self._state_lock_guard():
+            self.db.backup_to(target)
         return {"name": safe, "path": target}
 
     def delete_save(self, name: str) -> None:
         safe = self._safe_save_name(name)
         target = os.path.join(self.saves_dir(), f"{safe}.db")
-        if not os.path.isfile(target):
-            raise HTTPException(status_code=404, detail="存档不存在。")
-        os.remove(target)
+        with self._state_lock_guard():
+            if not os.path.isfile(target):
+                raise HTTPException(status_code=404, detail="Save does not exist.")
+            os.remove(target)
 
     def reset_game(self) -> None:
-        """全清主 DB：关连接 → 删 sqlite 主/wal/shm → 重建空 session。
-        存档目录不动。"""
-        try:
-            self.session.close()
-        except Exception:
-            pass
-        _delete_sqlite_db_files_or_raise(self.db_path)
-        self._rebuild_session(self.session.llm_config)
+        """Reset the live DB and rebuild the session under the shared state lock."""
+        with self._state_lock_guard():
+            llm_config = self.session.llm_config
+            try:
+                self.session.close()
+            except Exception:
+                pass
+            _delete_sqlite_db_files_or_raise(self.db_path)
+            self._rebuild_session(llm_config)
 
     def load_save(self, name: str) -> None:
-        """从存档热替换主 DB：备份当前 → 拷源到主 DB → 重建 session。"""
+        """Atomically restore a save DB into the live DB."""
         safe = self._safe_save_name(name)
         source = os.path.join(self.saves_dir(), f"{safe}.db")
         if not os.path.isfile(source):
-            raise HTTPException(status_code=404, detail="存档不存在。")
-        # 先关闭当前 session 的 DB 连接，避免 Windows/某些平台上的 file lock。
-        try:
-            self.session.close()
-        except Exception:
-            pass
-        # 用 sqlite backup 把存档拷回主路径
-        import sqlite3 as _sqlite3
-        src_conn = _sqlite3.connect(source)
-        dst_conn = _sqlite3.connect(self.db_path)
+            raise HTTPException(status_code=404, detail="Save does not exist.")
+        with self._state_lock_guard():
+            candidate_path = self._load_save_temp_db_path("candidate")
+            rollback_path = self._load_save_temp_db_path("rollback")
+            candidate_available = False
+            rollback_available = False
+            llm_config = self.session.llm_config
+            try:
+                self._backup_sqlite_file(source, candidate_path)
+                candidate_available = True
+                self._validate_candidate_save_db(candidate_path)
+
+                self.db.backup_to(rollback_path)
+                rollback_available = True
+
+                try:
+                    self.session.close()
+                except Exception:
+                    pass
+
+                self._cleanup_sqlite_sidecars(self.db_path)
+                try:
+                    os.replace(candidate_path, self.db_path)
+                    candidate_available = False
+                except OSError as exc:
+                    self._restore_rollback_db(rollback_path, rollback_available)
+                    rollback_available = False
+                    raise HTTPException(status_code=500, detail="Save replacement failed; current progress was kept.") from exc
+
+                try:
+                    self._rebuild_session(llm_config)
+                except Exception as exc:
+                    self._restore_rollback_db(rollback_path, rollback_available)
+                    rollback_available = False
+                    try:
+                        self._rebuild_session(llm_config)
+                    except Exception:
+                        logger.exception("Failed to rebuild session after rolling back failed save load.")
+                    raise HTTPException(status_code=500, detail="Save loaded but session rebuild failed; rolled back to previous DB.") from exc
+            finally:
+                if candidate_available:
+                    self._cleanup_sqlite_db_file(candidate_path)
+                if rollback_available:
+                    self._cleanup_sqlite_db_file(rollback_path)
+
+    def _state_lock_guard(self):
+        lock = getattr(self, "_state_lock", None)
+        if lock is None:
+            lock = threading.RLock()
+            self._state_lock = lock
+        return lock
+
+    def _load_save_temp_db_path(self, kind: str) -> str:
+        db_dir = os.path.abspath(os.path.dirname(self.db_path) or ".")
+        os.makedirs(db_dir, exist_ok=True)
+        base_name = Path(self.db_path).name
+        return os.path.join(db_dir, f"{base_name}.load-{kind}-{uuid.uuid4().hex}.db")
+
+    def _backup_sqlite_file(self, source_path: str, target_path: str) -> None:
+        os.makedirs(os.path.dirname(target_path) or ".", exist_ok=True)
+        self._cleanup_sqlite_db_file(target_path)
+        src_conn = sqlite3.connect(source_path)
+        dst_conn = sqlite3.connect(target_path)
         try:
             src_conn.backup(dst_conn)
+        except sqlite3.Error as exc:
+            self._cleanup_sqlite_db_file(target_path)
+            raise HTTPException(status_code=400, detail=f"Save database could not be read: {exc}") from exc
         finally:
             src_conn.close()
             dst_conn.close()
-        self._rebuild_session(self.session.llm_config)
+
+    def _validate_candidate_save_db(self, db_path: str) -> None:
+        try:
+            conn = sqlite3.connect(f"file:{Path(db_path).as_posix()}?mode=ro", uri=True)
+            try:
+                integrity = conn.execute("PRAGMA integrity_check").fetchone()
+                if not integrity or str(integrity[0]).lower() != "ok":
+                    raise HTTPException(status_code=400, detail="Save database integrity check failed.")
+                required_tables = {"game_state", "metrics", "kv_store", "characters"}
+                rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+                existing = {str(row[0]) for row in rows}
+                missing = sorted(required_tables - existing)
+                if missing:
+                    raise HTTPException(status_code=400, detail=f"Save schema is incomplete: {', '.join(missing)}")
+                state_row = conn.execute(
+                    "SELECT year, period, turn, turn_phase FROM game_state WHERE id = 1"
+                ).fetchone()
+                if state_row is None:
+                    raise HTTPException(status_code=400, detail="Save is missing game state row.")
+            finally:
+                conn.close()
+        except HTTPException:
+            raise
+        except sqlite3.Error as exc:
+            raise HTTPException(status_code=400, detail=f"Save database validation failed: {exc}") from exc
+
+    def _restore_rollback_db(self, rollback_path: str, rollback_available: bool) -> None:
+        if not rollback_available or not os.path.isfile(rollback_path):
+            return
+        try:
+            self._cleanup_sqlite_sidecars(self.db_path)
+            os.replace(rollback_path, self.db_path)
+        except OSError:
+            logger.exception("Failed to restore rollback database after load_save failure.")
+            raise
+
+    def _cleanup_sqlite_sidecars(self, db_path: str) -> None:
+        for suffix in ("-wal", "-shm", "-journal"):
+            sidecar = f"{db_path}{suffix}"
+            try:
+                os.remove(sidecar)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                logger.warning("ENV_BLOCKER: failed to remove SQLite sidecar %s", sidecar, exc_info=True)
+
+    def _cleanup_sqlite_db_file(self, db_path: str) -> None:
+        for path in (db_path, f"{db_path}-wal", f"{db_path}-shm", f"{db_path}-journal"):
+            try:
+                os.remove(path)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                logger.warning("ENV_BLOCKER: failed to remove temporary SQLite file %s", path, exc_info=True)
 
     def _rebuild_session(self, llm_config: LLMConfig) -> None:
         """用新 llm_config（或换完 DB 后）重建 GameSession + 内存缓存。"""
