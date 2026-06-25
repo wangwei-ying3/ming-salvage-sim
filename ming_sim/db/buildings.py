@@ -109,7 +109,7 @@ class _BuildingsMixin:
             """,
             (state.turn, state.year, state.period, building_id, name.strip()[:60], "诏书新立建筑"),
         )
-        self.conn.commit()
+        self.commit()
         return building_id
 
     def remove_building(self, state: GameState, building_id: str, reason: str = "") -> bool:
@@ -127,7 +127,7 @@ class _BuildingsMixin:
              str(row["name"]), (reason or "建筑废止").strip()[:80]),
         )
         self.conn.execute("DELETE FROM buildings WHERE id = ?", (building_id,))
-        self.conn.commit()
+        self.commit()
         return True
 
     def apply_building_deltas(
@@ -218,7 +218,7 @@ class _BuildingsMixin:
                     "delta": log_delta,
                     "reason": reason,
                 })
-        self.conn.commit()
+        self.commit()
         return changes
 
     def buildings_report(self, region_id: str = "") -> str:
@@ -322,7 +322,7 @@ class _BuildingsMixin:
              effect_summary.strip()[:160], status.strip()[:160] or "已解锁。",
              origin, state.turn),
         )
-        self.conn.commit()
+        self.commit()
         return tech_id
 
     def technology_payload(self) -> List[Dict[str, object]]:
@@ -369,7 +369,7 @@ class _BuildingsMixin:
              max(0, min(100, int(corruption_risk))),
              origin),
         )
-        self.conn.commit()
+        self.commit()
         return office_type
 
     def department_payload(self) -> List[Dict[str, object]]:

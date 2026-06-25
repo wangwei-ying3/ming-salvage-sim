@@ -73,4 +73,4 @@ class _FactionsMixin:
                 "UPDATE factions SET satisfaction = ?, leverage = ? WHERE name = ?",
                 (new_sat, new_lev, faction),
             )
-        self.conn.commit()
+        self.commit()

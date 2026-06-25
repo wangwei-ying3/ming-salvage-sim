@@ -334,7 +334,7 @@ def _auto_pay_arrears_by_priority(
              str(current_arrears), str(new_arrears), new_arrears - current_arrears,
              f"诏拨补饷{abs(actual)}万两（按优先级）"),
         )
-        db.conn.commit()
+        db.commit()
         spent += abs(actual)
         remaining -= abs(actual)
     return spent
@@ -417,7 +417,7 @@ def _apply_economy_list(
                      str(current_arrears), str(new_arrears), new_arrears - current_arrears,
                      f"诏拨补饷{abs(actual)}万两"),
                 )
-                db.conn.commit()
+                db.commit()
                 applied.append({"account": account, "delta": actual, "reason": reason})
             continue
 

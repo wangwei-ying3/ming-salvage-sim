@@ -269,7 +269,7 @@ def _apply_character_location(db: GameDB, content, name: str, location: object) 
     if not name or not loc:
         return ""
     db.conn.execute("UPDATE characters SET location=? WHERE name=?", (loc, name))
-    db.conn.commit()
+    db.commit()
     if content is not None and name in content.characters:
         content.characters[name].location = loc
     return loc
@@ -1600,7 +1600,7 @@ def _displace_duplicate_offices(
         )
         if content is not None and row["name"] in content.characters:
             content.characters[row["name"]].office = new_holder_office
-    db.conn.commit()
+    db.commit()
     return displaced
 
 

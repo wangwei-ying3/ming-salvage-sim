@@ -1032,6 +1032,62 @@
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
 
+## Session 2026-06-25 11:38 Local
+
+### Goal
+- Goal 12D: migrate only the Goal 12C Blocking internal commits to the transaction-aware commit guard and add rollback tests.
+
+### What I inspected
+- `ming_sim/flows.py`: salary/arrears economy subpaths reachable from `apply_score_extraction()`.
+- `ming_sim/db/factions.py`, `ming_sim/db/regions.py`, `ming_sim/db/characters.py`, `ming_sim/db/secret_orders.py`, and `ming_sim/db/buildings.py`: Blocking helper commit points identified in Goal 12C.
+- `ming_sim/issues.py`: character location and duplicate-office helper commits.
+- Existing transaction tests in `tests/test_db_transaction_helper.py` and `tests/test_settlement_transaction_rollback.py`.
+
+### Bugs found
+- [High] Blocking direct commits in settlement-reachable helper paths still committed inside `db.transaction()`, so rollback after a later reducer failure could not restore faction/class/economy/character/secret-order/building effects.
+
+### Changes made
+- `ming_sim/flows.py`: changed salary/arrears economy subpath commits from `db.conn.commit()` to `db.commit()`.
+- `ming_sim/issues.py`: changed `_apply_character_location()` and `_displace_duplicate_offices()` commits from `db.conn.commit()` to `db.commit()`.
+- `ming_sim/db/factions.py`: changed `adjust_factions()` to `self.commit()`.
+- `ming_sim/db/regions.py`: changed `adjust_classes()` to `self.commit()`.
+- `ming_sim/db/characters.py`: changed `set_character_status()`, `apply_character_power_changes()`, `set_character_office()`, and `add_character()` to `self.commit()`.
+- `ming_sim/db/secret_orders.py`: changed `close_secret_order()` and `_append_secret_order_line()` to `self.commit()`.
+- `ming_sim/db/buildings.py`: changed `add_building()`, `remove_building()`, `apply_building_deltas()`, `add_technology()`, and `add_department()` to `self.commit()`.
+- `tests/test_settlement_transaction_blocking_commits.py`: added rollback coverage for all Goal 12C Blocking categories plus representative outside-transaction commit compatibility.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: recorded Goal 12D status and remaining Follow-up/Safe boundaries.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `.\.venv\Scripts\python.exe -m pytest tests\test_settlement_transaction_blocking_commits.py -q` | FAIL | RED run: 5 rollback tests failed against the old direct commits; representative outside-transaction test passed. |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_settlement_transaction_blocking_commits.py -q` | PASS | GREEN run: `6 passed, 1 warning`; warning is local `.pytest_cache` WinError 5. |
+| `.\.venv\Scripts\python.exe -m pytest -q` | PASS | `94 passed, 2 warnings`; warnings are Starlette TestClient deprecation and local `.pytest_cache` WinError 5. |
+| `rg -n "\bself\.conn\.commit\(\)|\bdb\.conn\.commit\(\)" ming_sim\flows.py ming_sim\db\factions.py ming_sim\db\regions.py ming_sim\db\characters.py ming_sim\issues.py ming_sim\db\secret_orders.py ming_sim\db\buildings.py` | PASS | Confirmed remaining direct commits in these files are Follow-up/Safe for the current extraction transaction boundary. |
+
+### Current status
+- PASS: all Goal 12C Blocking commit points were migrated and targeted/full pytest passed.
+
+### Remaining blockers
+- Follow-up/Safe direct commits remain outside the current `_settle_after_narrative()` extraction transaction boundary: fixed monthly flows, inertia/ongoing effects, chat/memory/admin/schema/seed/save-state/directive paths, and arms dispatch.
+- A future hardening pass may decide whether to expand transaction coverage beyond extraction settlement.
+
+### Next recommended action
+- Proceed to Goal 13 or a new explicit follow-up for broader turn-level transaction hardening.
+
+### Files changed this session
+- `ming_sim/flows.py`
+- `ming_sim/issues.py`
+- `ming_sim/db/factions.py`
+- `ming_sim/db/regions.py`
+- `ming_sim/db/characters.py`
+- `ming_sim/db/secret_orders.py`
+- `ming_sim/db/buildings.py`
+- `tests/test_settlement_transaction_blocking_commits.py`
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
 ## Session 2026-06-25 11:24 Local
 
 ### Goal

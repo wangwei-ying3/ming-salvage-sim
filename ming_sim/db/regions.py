@@ -453,4 +453,4 @@ class _RegionsMixin:
                 "WHERE name = ? AND region_id = ?",
                 (sat, lev, name.strip(), region_id.strip()),
             )
-        self.conn.commit()
+        self.commit()
