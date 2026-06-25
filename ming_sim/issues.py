@@ -1604,6 +1604,10 @@ def _displace_duplicate_offices(
     return displaced
 
 
+def _raise_reducer_failure(reducer_name: str, exc: Exception) -> None:
+    raise RuntimeError(f"{reducer_name} reducer failed: {exc}") from exc
+
+
 def apply_score_extraction(
     db: GameDB,
     state: GameState,
@@ -1651,17 +1655,17 @@ def apply_score_extraction(
         try:
             created_armies = db.create_armies_from_extraction(state, new_armies_raw, actor="档房")
         except Exception as exc:
-            print(f"[WARN] new_armies 落库失败：{exc}")
+            _raise_reducer_failure("new_armies", exc)
     if isinstance(region_deltas_raw, dict) and region_deltas_raw:
         try:
             region_changes = db.apply_region_deltas(state, pseudo_event, None, "档房", region_deltas_raw)
         except Exception as exc:
-            print(f"[WARN] region_delta 落库失败：{exc}")
+            _raise_reducer_failure("region_delta", exc)
     if isinstance(army_deltas_raw, dict) and army_deltas_raw:
         try:
             army_changes = db.apply_army_deltas(state, pseudo_event, None, "档房", army_deltas_raw)
         except Exception as exc:
-            print(f"[WARN] army_delta 落库失败：{exc}")
+            _raise_reducer_failure("army_delta", exc)
 
     # 注：建筑的新建/变更/废止不走顶层字段，全由 issue 的 effect_on_resolve /
     #     effect_on_fail 里的 `buildings` 段在局势结案时落地（见 _apply_issue_buildings）。
@@ -1674,7 +1678,7 @@ def apply_score_extraction(
         try:
             arms_changes = db.apply_arms_stock_deltas(state, arms_changes_raw)
         except Exception as exc:
-            print(f"[WARN] arms_changes 落库失败：{exc}")
+            _raise_reducer_failure("arms_changes", exc)
 
     # 5) power_updates：非明势力三项简表（威望/实力/经济）落库
     power_updates_raw = extracted.get("power_updates") or {}
@@ -1683,7 +1687,7 @@ def apply_score_extraction(
         try:
             power_changes = db.apply_power_deltas(state, power_updates_raw)
         except Exception as exc:
-            print(f"[WARN] power_updates 落库失败：{exc}")
+            _raise_reducer_failure("power_updates", exc)
 
     # 6) issue_advances / new_issues / close_issues / cancels (复用旧 tracker 落地)
     issue_log_compactor = make_issue_log_compactor(llm_config, agno_db)
@@ -1847,7 +1851,7 @@ def apply_score_extraction(
             extracted.get("character_power_changes") or []
         )
     except Exception as exc:
-        print(f"[WARN] character_power_changes 落库失败：{exc}")
+        _raise_reducer_failure("character_power_changes", exc)
 
     # 10) office_changes：朝臣官职变更——统一吃「新任（建档）」与「调任（改职）」。
     #     extractor 不再分新任/调任，代码按 name 在不在册自判：

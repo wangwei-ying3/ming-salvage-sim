@@ -1032,6 +1032,51 @@
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
 
+## Session 2026-06-25 10:12 Local
+
+### Goal
+- Goal 11B-2: make critical LLM reducer failures fail fast after validated payload entry, without DB transaction changes or real LLM API calls.
+
+### What I inspected
+- `ming_sim/issues.py`: `apply_score_extraction()` reducer order and all broad `except Exception` branches around reducer handoff.
+- `ming_sim/issues.py`: remaining broad exceptions outside the core monthly extraction handoff, including issue-effect best-effort helpers, per-item character/office rejection paths, and secret-order per-item rejection paths.
+- `tests/`: existing reducer and structured-payload tests, then new mock-only reducer fail-fast tests.
+
+### Bugs found
+- [High] `ming_sim/issues.py`: module-level critical reducer failures in `new_armies`, `region_delta`, `army_delta`, `arms_changes`, `power_updates`, and `character_power_changes` were printed as warnings and swallowed, allowing later reducer steps to continue after a failed state/DB mutation.
+- [High] `ming_sim/issues.py` / `ming_sim/db/**`: full rollback is still not guaranteed because earlier reducer steps may have already committed before a later fail-fast exception; this remains Goal 12.
+
+### Changes made
+- `ming_sim/issues.py`: added `_raise_reducer_failure()` and changed module-level critical reducer exception handling to raise `RuntimeError("<module> reducer failed: ...")` with exception chaining.
+- `ming_sim/issues.py`: left per-item rejection/reporting branches for character status, office changes, secret orders, issue effects, and issue creation unchanged to avoid broad behavior changes outside this goal.
+- `tests/test_llm_reducer_fail_fast.py`: added mock-only tests proving `region_delta` and `army_delta` failures raise and stop later reducer calls, plus a valid minimal payload still returning a summary.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: recorded the fail-fast scope and Goal 12 rollback residual risk.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `rg -n "def apply_score_extraction|except Exception|apply_region_deltas|apply_army_deltas|create_armies_from_extraction|apply_arms_stock_deltas|apply_power_deltas|apply_issue_tracker_output" ming_sim\issues.py` | PASS | Located broad reducer exception branches. |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_llm_reducer_fail_fast.py -q` | FAIL | RED confirmed current code swallowed region/army reducer exceptions and did not raise. Earlier setup failures were fixed by adding minimal fake DB/mocked issue/victory dependencies. |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_llm_reducer_fail_fast.py -q` | PASS | `3 passed`; `.pytest_cache` WinError 5 warning only. |
+| `.\.venv\Scripts\python.exe -m pytest -q` | PASS | `75 passed`; warnings are Starlette TestClient deprecation and local `.pytest_cache` WinError 5. |
+
+### Current status
+- PASS: module-level critical reducer failures now fail fast and stop later reducer processing.
+
+### Remaining blockers
+- DB rollback/transaction semantics remain unresolved for Goal 12; fail-fast prevents silent continuation but does not undo earlier commits.
+- Local `.pytest_cache` creation still reports WinError 5, but tests pass and this is an environment/cache permission issue.
+
+### Next recommended action
+- Execute Goal 12 to add a transaction/staging boundary around monthly structured extraction settlement so fail-fast exceptions can roll back already-applied state.
+
+### Files changed this session
+- `ming_sim/issues.py`
+- `tests/test_llm_reducer_fail_fast.py`
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
 ## Session 2026-06-25 10:03 Local
 
 ### Goal
