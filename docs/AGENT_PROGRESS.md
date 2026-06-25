@@ -1032,6 +1032,51 @@
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
 
+## Session 2026-06-25 10:56 Local
+
+### Goal
+- Goal 12B-2: wrap only the post-extractor `apply_score_extraction()` settlement write segment in `ming_sim/decree.py::_settle_after_narrative()` with `db.transaction()`, without wrapping LLM/extractor calls or unrelated monthly phases.
+
+### What I inspected
+- `ming_sim/decree.py::_settle_after_narrative()`: extractor setup/call, extractor exception fallback, `apply_score_extraction()`, turn report/extraction persistence, chapter/minister memory writes, issue inertia/ongoing effects, directive marking, `next_period()`, and `save_state()`.
+- Existing tests for reducer boundaries, DB transaction helper behavior, and current git status.
+
+### Bugs found
+- [High] `ming_sim/decree.py`: `apply_score_extraction()` and immediate turn report/extraction writes were not inside a managed transaction boundary after Goal 12B-1.
+- [Medium] `ming_sim/decree.py`: extractor failure fallback still called the reducer with an empty extraction payload; for this boundary pass, extractor failure should not enter the transaction or reducer path.
+
+### Changes made
+- `ming_sim/decree.py`: added `extraction_failed` tracking.
+- `ming_sim/decree.py`: wrapped only successful extractor result application (`apply_score_extraction()`, `save_turn_report()`, and `save_turn_extraction()`) in `db.transaction()`.
+- `ming_sim/decree.py`: left extractor/LLM calls, chapter memory, minister recap, issue inertia/ongoing, ending checks, directive marking, `next_period()`, and `save_state()` outside this transaction.
+- `tests/test_settlement_transaction_boundary.py`: added mock-only tests for reducer failure rollback, success commit, and extractor failure bypassing the transaction/reducer.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: recorded Goal 12B-2 completion and the remaining 12B-3 helper-internal commit risk.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `rg -n "def _settle_after_narrative|apply_score_extraction|extract|save_turn_extraction|next_period|save_state|resolve_turn|resolve_directives|submit_decisions" ming_sim\decree.py tests` | PASS | Located the transaction insertion point and related tests. |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_settlement_transaction_boundary.py -q` | FAIL | Initial TDD run failed because `apply_score_extraction()` was outside transaction and extractor failure still called the reducer. |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_settlement_transaction_boundary.py -q` | PASS | `3 passed`; local `.pytest_cache` WinError 5 warning remains environmental. |
+| `.\.venv\Scripts\python.exe -m pytest -q` | PASS | `84 passed`; warnings are Starlette TestClient deprecation and local `.pytest_cache` WinError 5. |
+
+### Current status
+- PASS: the post-extractor settlement write segment is now inside `db.transaction()` and targeted plus full Python tests pass.
+
+### Remaining blockers
+- Many reducer DB helpers still call `self.conn.commit()` directly, so full rollback semantics require Goal 12B-3 migration to `self.commit()` or equivalent transaction-aware behavior.
+- Local `.pytest_cache` creation still reports WinError 5, but tests pass and this is an environment/cache permission issue.
+
+### Next recommended action
+- Execute Goal 12B-3 by migrating only the DB helpers used by `apply_score_extraction()` from direct `self.conn.commit()` to transaction-aware `self.commit()`, then add rollback state tests.
+
+### Files changed this session
+- `ming_sim/decree.py`
+- `tests/test_settlement_transaction_boundary.py`
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
 ## Session 2026-06-25 10:38 Local
 
 ### Goal
