@@ -1,5 +1,11 @@
+## 2026-06-25
+
+- Goal 9B-Cleanup tightened avatar upload test temp hygiene: `tests/test_avatar_upload_security.py` no longer creates `.test_avatar_upload/` or `.tmp_pytest/`, `.gitignore` now protects `/.test_avatar_upload/`, `/.tmp_pytest/`, and `/test_avatar_upload_tmp/`, and verification shows those directories no longer appear in `git status --short`. Physical cleanup remains a local WinError 5/tool-policy blocker, and default `tmp_path`/`TemporaryDirectory` locations are not usable in this workspace.
+
 ## 2026-06-24
 
+- Goal 9B fixed avatar upload security: custom portrait files now use NFKC-normalized SHA-256 storage keys instead of raw names, all custom portrait paths are resolved and contained under `UPLOAD_PORTRAIT_DIR`, uploads are streamed with an 8 MB limit, Pillow verifies and re-encodes PNG/JPEG/WebP images while rejecting spoofed text/SVG/corrupt payloads, writes use same-directory temp files plus `os.replace` with rollback, delete clears DB before best-effort file cleanup, and `tests/test_avatar_upload_security.py` covers malicious names, spoofed content, valid raster images, oversized payloads, rollback, delete, and containment. No real LLM API was called.
+- Goal 9A avatar upload security audit completed without source changes. Risks found: unsanitized character-name-derived paths, content-type-only validation, full-file read before size enforcement, and non-atomic delete/write/DB sequencing. No real LLM API was called.
 - Goal 8 centralized provider parameter normalization for DeepSeek V4 thinking controls: `deepseek-v4*` models now receive explicit supported `thinking` toggles, optional `reasoning_effort` normalization, and advanced smoke validation uses the same thinking-enabled path as monthly simulator calls. Added mock-only tests; no real LLM API was called.
 - Goal 7B removed all `/bg_ending.webp` CSS references from `web/src/styles.css` without adding a replacement image. The affected ending background blocks already had dark gradient fallback layers, which are now the only backgrounds used there.
 - Confirmed Goal 7B searches are clean: `Select-String` found no remaining `bg_ending` or `/bg_ending.webp` references under `web`.

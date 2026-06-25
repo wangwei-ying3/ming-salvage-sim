@@ -52,6 +52,9 @@ web/public/portraits/_original_before_cutout
 .coverage
 htmlcov/
 output
+/.test_avatar_upload/
+/.tmp_pytest/
+/test_avatar_upload_tmp/
 # Frontend
 node_modules/
 web/node_modules/

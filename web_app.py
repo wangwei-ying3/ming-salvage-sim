@@ -8,7 +8,10 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import io
 import json
+import logging
 import os
 import queue
 import random
@@ -18,13 +21,17 @@ import subprocess
 import sys
 import threading
 import time
+import unicodedata
 import uuid
+from pathlib import Path
 from typing import Any, AsyncIterator, Dict, Iterator, List, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from PIL import Image, UnidentifiedImageError
+from PIL.Image import DecompressionBombError
 from pydantic import BaseModel, Field
 
 from ming_sim.constants import ROOT_DIR
@@ -72,6 +79,11 @@ UPLOAD_PORTRAIT_DIR = user_data_path("uploads", "portraits")
 CUSTOM_PORTRAIT_PREFIX = "custom:"
 ALLOWED_PORTRAIT_TYPES = {"image/png", "image/jpeg", "image/webp"}
 MAX_PORTRAIT_BYTES = 8 * 1024 * 1024  # 8MB 上限
+PORTRAIT_CHUNK_BYTES = 1024 * 1024
+MAX_PORTRAIT_DIMENSION = 4096
+MAX_PORTRAIT_PIXELS = MAX_PORTRAIT_DIMENSION * MAX_PORTRAIT_DIMENSION
+
+logger = logging.getLogger(__name__)
 
 _AGNO_SKILL_DESCRIPTIONS = {
     "memory-recall": "查阅既往邸报与起居注，补足旧事来龙去脉。",
@@ -4037,15 +4049,143 @@ async def api_set_llm_config(request: LLMConfigRequest) -> Dict[str, Any]:
 # ── 自定义立绘上传/读取 ──────────────────────────────────────────────────────
 # content_type → 存盘扩展名。一人一图，上传新图会顶掉旧扩展名的文件。
 _PORTRAIT_EXT = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
+_PORTRAIT_FORMAT_EXT = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp"}
+_PORTRAIT_SAVE_FORMAT = {"PNG": "PNG", "JPEG": "JPEG", "WEBP": "WEBP"}
+_PORTRAIT_EXTS = tuple(_PORTRAIT_FORMAT_EXT.values())
+
+
+def _portrait_storage_key(name: str) -> str:
+    normalized = unicodedata.normalize("NFKC", name or "")
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _portrait_upload_dir(create: bool = False) -> Path:
+    upload_dir = Path(UPLOAD_PORTRAIT_DIR)
+    if create:
+        upload_dir.mkdir(parents=True, exist_ok=True)
+    return upload_dir.resolve()
+
+
+def _safe_portrait_path(storage_key: str, ext: str) -> Path:
+    if len(storage_key) != 64 or any(ch not in "0123456789abcdef" for ch in storage_key):
+        raise HTTPException(status_code=400, detail="非法头像存储键")
+    if ext not in _PORTRAIT_EXTS:
+        raise HTTPException(status_code=400, detail="非法头像格式")
+    upload_dir = _portrait_upload_dir(create=True)
+    target = (upload_dir / f"{storage_key}.{ext}").resolve()
+    try:
+        target.relative_to(upload_dir)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="非法头像路径") from exc
+    return target
+
+
+def _portrait_temp_path(storage_key: str, suffix: str = "tmp") -> Path:
+    upload_dir = _portrait_upload_dir(create=True)
+    target = (upload_dir / f".{storage_key}.{uuid.uuid4().hex}.{suffix}").resolve()
+    try:
+        target.relative_to(upload_dir)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="非法头像路径") from exc
+    return target
+
+
+def _custom_portrait_paths(storage_key: str) -> List[Path]:
+    return [_safe_portrait_path(storage_key, ext) for ext in _PORTRAIT_EXTS]
+
+
+def _find_custom_portrait_file(storage_key: str) -> Optional[Path]:
+    found: List[Path] = []
+    for path in _custom_portrait_paths(storage_key):
+        if path.exists():
+            found.append(path)
+    if not found:
+        return None
+    return max(found, key=lambda path: path.stat().st_mtime_ns)
+
+
+async def _read_upload_limited(file: UploadFile, max_bytes: int = MAX_PORTRAIT_BYTES) -> bytes:
+    data = bytearray()
+    while True:
+        chunk = await file.read(PORTRAIT_CHUNK_BYTES)
+        if not chunk:
+            break
+        data.extend(chunk)
+        if len(data) > max_bytes:
+            raise HTTPException(status_code=413, detail="图片过大（上限 8MB）")
+    return bytes(data)
+
+
+def _validate_and_normalize_portrait(data: bytes, content_type: str) -> tuple[str, bytes]:
+    if content_type not in ALLOWED_PORTRAIT_TYPES:
+        raise HTTPException(status_code=400, detail="仅支持 PNG/JPEG/WebP 图片")
+    if not data:
+        raise HTTPException(status_code=400, detail="文件为空")
+
+    try:
+        with Image.open(io.BytesIO(data)) as image:
+            image.verify()
+        with Image.open(io.BytesIO(data)) as image:
+            image.load()
+            image_format = (image.format or "").upper()
+            ext = _PORTRAIT_FORMAT_EXT.get(image_format)
+            if ext is None:
+                raise HTTPException(status_code=400, detail="仅支持 PNG/JPEG/WebP 图片")
+
+            width, height = image.size
+            if (
+                width <= 0
+                or height <= 0
+                or width > MAX_PORTRAIT_DIMENSION
+                or height > MAX_PORTRAIT_DIMENSION
+                or width * height > MAX_PORTRAIT_PIXELS
+            ):
+                raise HTTPException(status_code=400, detail="图片尺寸过大")
+
+            has_alpha = image.mode in {"RGBA", "LA"} or "transparency" in image.info
+            output_mode = "RGBA" if image_format in {"PNG", "WEBP"} and has_alpha else "RGB"
+            clean = image.convert(output_mode)
+            out = io.BytesIO()
+            save_kwargs: Dict[str, Any] = {}
+            if image_format == "JPEG":
+                save_kwargs["quality"] = 90
+            elif image_format == "WEBP":
+                save_kwargs["quality"] = 90
+                save_kwargs["method"] = 6
+            clean.save(out, format=_PORTRAIT_SAVE_FORMAT[image_format], **save_kwargs)
+    except HTTPException:
+        raise
+    except (UnidentifiedImageError, DecompressionBombError, OSError, SyntaxError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="图片文件无效或已损坏") from exc
+
+    normalized = out.getvalue()
+    if not normalized:
+        raise HTTPException(status_code=400, detail="图片文件无效或已损坏")
+    if len(normalized) > MAX_PORTRAIT_BYTES:
+        raise HTTPException(status_code=400, detail="图片编码后过大")
+    return ext, normalized
+
+
+def _write_portrait_temp(storage_key: str, data: bytes) -> Path:
+    temp_path = _portrait_temp_path(storage_key)
+    try:
+        with open(temp_path, "wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+    except Exception:
+        try:
+            temp_path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("failed to clean portrait temp file: %s", temp_path)
+        raise
+    return temp_path
 
 
 def _find_portrait_file(name: str) -> Optional[str]:
     """找该人物已存在的自定义立绘文件（任一扩展名），无则 None。"""
-    for ext in _PORTRAIT_EXT.values():
-        path = os.path.join(UPLOAD_PORTRAIT_DIR, f"{name}.{ext}")
-        if os.path.exists(path):
-            return path
-    return None
+    path = _find_custom_portrait_file(_portrait_storage_key(name))
+    return str(path) if path is not None else None
 
 
 @app.post("/api/consorts/{name}/portrait")
@@ -4054,23 +4194,62 @@ async def api_upload_portrait(name: str, file: UploadFile = File(...)) -> Dict[s
     character = get_game().find_character(name)
     if character is None:
         raise HTTPException(status_code=404, detail="未找到该人物")
-    ext = _PORTRAIT_EXT.get(file.content_type or "")
-    if ext is None:
-        raise HTTPException(status_code=400, detail="仅支持 PNG/JPEG/WebP 图片")
-    data = await file.read()
-    if not data:
-        raise HTTPException(status_code=400, detail="文件为空")
-    if len(data) > MAX_PORTRAIT_BYTES:
-        raise HTTPException(status_code=400, detail="图片过大（上限 8MB）")
-    os.makedirs(UPLOAD_PORTRAIT_DIR, exist_ok=True)
-    # 先清掉该人物的旧图（可能扩展名不同），再写新图。
-    old = _find_portrait_file(name)
-    if old is not None:
-        os.remove(old)
-    with open(os.path.join(UPLOAD_PORTRAIT_DIR, f"{name}.{ext}"), "wb") as fh:
-        fh.write(data)
-    get_game().set_custom_portrait(name, f"{CUSTOM_PORTRAIT_PREFIX}{name}")
-    return {"name": name, "portrait_id": f"{CUSTOM_PORTRAIT_PREFIX}{name}"}
+    data = await _read_upload_limited(file)
+    ext, normalized = _validate_and_normalize_portrait(data, file.content_type or "")
+    storage_key = _portrait_storage_key(name)
+    old_path = _find_custom_portrait_file(storage_key)
+    final_path = _safe_portrait_path(storage_key, ext)
+    temp_path: Optional[Path] = None
+    backup_path: Optional[Path] = None
+    portrait_id = f"{CUSTOM_PORTRAIT_PREFIX}{name}"
+
+    try:
+        temp_path = _write_portrait_temp(storage_key, normalized)
+        if old_path is not None and old_path.exists():
+            backup_path = _portrait_temp_path(storage_key, "bak")
+            os.replace(old_path, backup_path)
+        os.replace(temp_path, final_path)
+        temp_path = None
+        get_game().set_custom_portrait(name, portrait_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        if temp_path is not None:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                logger.warning("failed to clean portrait temp file: %s", temp_path)
+        if backup_path is not None:
+            try:
+                final_path.unlink(missing_ok=True)
+            except OSError:
+                logger.warning("failed to remove failed portrait file: %s", final_path)
+            try:
+                if backup_path.exists():
+                    restore_target = old_path or final_path
+                    os.replace(backup_path, restore_target)
+            except OSError:
+                logger.warning("failed to restore previous portrait file: %s", backup_path)
+        else:
+            try:
+                final_path.unlink(missing_ok=True)
+            except OSError:
+                logger.warning("failed to remove failed portrait file: %s", final_path)
+        raise HTTPException(status_code=500, detail="头像保存失败") from exc
+
+    if backup_path is not None:
+        try:
+            backup_path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("failed to clean portrait backup file: %s", backup_path)
+    for stale_path in _custom_portrait_paths(storage_key):
+        if stale_path != final_path and stale_path.exists():
+            try:
+                stale_path.unlink()
+            except OSError:
+                logger.warning("failed to clean stale portrait file: %s", stale_path)
+
+    return {"name": name, "portrait_id": portrait_id}
 
 
 @app.delete("/api/consorts/{name}/portrait")
@@ -4078,11 +4257,14 @@ async def api_delete_portrait(name: str) -> Dict[str, Any]:
     character = get_game().find_character(name)
     if character is None:
         raise HTTPException(status_code=404, detail="未找到该人物")
-    old = _find_portrait_file(name)
-    if old is not None:
-        os.remove(old)
-    # 复位 portrait_id：清空 → 前端回落到池图（add/seed 时会按 office_type 再分配）。
+    storage_key = _portrait_storage_key(name)
+    paths = [path for path in _custom_portrait_paths(storage_key) if path.exists()]
     get_game().set_custom_portrait(name, "")
+    for path in paths:
+        try:
+            path.unlink()
+        except OSError:
+            logger.warning("failed to delete custom portrait file: %s", path)
     return {"name": name, "portrait_id": ""}
 
 
@@ -4100,7 +4282,10 @@ async def api_set_court_layout(body: Dict[str, Any]) -> Dict[str, Any]:
 
 @app.get("/portraits/custom/{name}")
 async def api_get_portrait(name: str):
-    path = _find_portrait_file(name)
+    character = get_game().find_character(name)
+    if character is None or not str(getattr(character, "portrait_id", "")).startswith(CUSTOM_PORTRAIT_PREFIX):
+        raise HTTPException(status_code=404, detail="无自定义立绘")
+    path = _find_custom_portrait_file(_portrait_storage_key(name))
     if path is None:
         raise HTTPException(status_code=404, detail="无自定义立绘")
     return FileResponse(path)

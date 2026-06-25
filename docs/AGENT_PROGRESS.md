@@ -143,6 +143,56 @@
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
 
+## Session 2026-06-24 17:37 Local
+
+### Goal
+- Goal 9B: fix avatar/portrait upload security risks from Goal 9A without real LLM API calls, gameplay changes, frontend UI changes, or unrelated refactors.
+
+### What I inspected
+- `web_app.py` custom portrait upload, delete, and read routes.
+- `requirements.txt` runtime dependencies.
+- `tests/` FastAPI test patterns and avatar upload coverage gap.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`.
+
+### Bugs found
+- [High] `web_app.py`: custom portrait filenames used raw character names, allowing path traversal/invalid Windows filename risks for unsafe persisted names.
+- [Medium] `web_app.py`: uploads trusted `UploadFile.content_type`, accepted spoofed payloads, and read the full file before enforcing the 8 MB limit.
+- [Medium] `web_app.py`: upload/delete sequencing was not atomic across file writes and DB updates.
+- [Low] `tests/`: no backend regression coverage existed for avatar upload security.
+
+### Changes made
+- `web_app.py`: added NFKC+SHA-256 portrait storage keys, path containment checks, chunked upload reads, Pillow image verification/re-encoding, same-directory temp writes with `os.replace`, DB rollback for failed upload updates, DB-first delete behavior, and safe custom portrait reads.
+- `requirements.txt`: added `Pillow>=10.4.0`.
+- `tests/test_avatar_upload_security.py`: added mock-only FastAPI regression tests for malicious names, spoofed/SVG/corrupt content, valid PNG/JPEG/WebP, oversized uploads, rollback, delete behavior, and path containment.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: recorded Goal 9B fix and verification.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `.\.venv\Scripts\python.exe -m pytest tests\test_avatar_upload_security.py -q` | FAIL | Red/diagnostic run before the implementation showed expected failures in path safety, content validation, size status, and rollback behavior. |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_avatar_upload_security.py -q` | PASS | `9 passed, 2 warnings`; warnings are Starlette `TestClient` deprecation and known `.pytest_cache` permission warning. |
+| `.\.venv\Scripts\python.exe -m pytest -q` | PASS | `61 passed, 2 warnings`; no real LLM API was called. |
+| `rg -n "await file\.read\(\)|_find_portrait_file|_portrait_storage_key|_read_upload_limited|_validate_and_normalize_portrait|os\.replace|/portraits/custom" web_app.py tests\test_avatar_upload_security.py` | PASS | Confirmed no unbounded `await file.read()` remains in the upload route and the custom portrait route uses the safe helpers. |
+| `.NET Directory.Delete(...)` for local test temp directories | FAIL | Local WinError 5 denied cleanup of generated test directories; they remain untracked workspace artifacts and are not source changes. |
+
+### Current status
+- PASS: Goal 9B security fix and regression tests are implemented. No real LLM API was called.
+
+### Remaining blockers
+- Local workspace deletion permissions still block cleanup of some generated test directories.
+- Existing `.pytest_cache` permission warning remains non-blocking; pytest passes.
+
+### Next recommended action
+- Commit Goal 9B source, dependency, test, and docs changes after reviewing the diff; clean inaccessible local temp directories manually if the OS releases them.
+
+### Files changed this session
+- `web_app.py`
+- `requirements.txt`
+- `tests/test_avatar_upload_security.py`
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
 ## Session 2026-06-24 16:27 Local
 
 ### Goal
@@ -835,6 +885,102 @@
 - `ming_sim/llm_model.py`
 - `web_app.py`
 - `tests/test_llm_provider_params.py`
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
+## Session 2026-06-24 17:02 Local
+
+### Goal
+- Goal 9A: audit avatar upload security only, without source changes, gameplay changes, DeepSeek changes, save/reducer changes, or real LLM API calls.
+
+### What I inspected
+- `web_app.py` upload/delete/custom portrait routes and upload directory constants
+- `ming_sim/paths.py` user data directory resolution
+- `ming_sim/db/characters.py` `characters.portrait_id` update and character insert paths
+- `web/src/main.tsx` upload request construction
+- `web/src/components/hud.tsx` file input constraints
+- `web/src/components/drawers.tsx` portrait display/upload wiring
+- `tests/` avatar upload coverage search
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, `docs/FIX_LOG.md`
+
+### Bugs found
+- [High] `web_app.py:4042`, `web_app.py:4070`, `web_app.py:4103`: custom portrait paths are derived from character `name` without filename sanitization or final path containment checks. Existing-character lookup reduces arbitrary input risk, but unsafe persisted names containing Windows path separators can still escape or collide.
+- [Medium] `web_app.py:4057`, `web_app.py:4060`: upload type is selected from `UploadFile.content_type`; the backend does not validate extension, magic bytes, or decodable image headers, and reads the whole file before enforcing `MAX_PORTRAIT_BYTES`.
+- [Medium] `web_app.py:4067`, `web_app.py:4070`, `web_app.py:4072`, `web_app.py:4081`, `web_app.py:4085`: upload/delete sequencing is not atomic across old-file removal, new-file write, and DB update, so failures can lose old avatars, create orphan files, or leave DB state pointing at missing files.
+- [Low] `tests/`: no existing automated tests cover avatar upload security or failure modes.
+
+### Changes made
+- No source changes.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: recorded Goal 9A audit findings and Goal 9B patch plan direction.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `rg -n "UploadFile|File\(|portrait|avatar|FormData|multipart|content_type|StaticFiles|mount\(" web_app.py ming_sim tests web/src` | PASS | Located backend route, constants, frontend upload call, and display paths. |
+| `rg -n "portrait|avatar|image|custom_portrait|portrait_file|avatar" ming_sim\db ming_sim tests` | PASS | Located DB `portrait_id` schema/update and confirmed no upload tests. |
+| `rg -n "api_upload_portrait|/api/consorts/.*/portrait|consorts/.*/portrait|portrait upload|UploadFile|MAX_PORTRAIT_BYTES|_PORTRAIT_EXT|_find_portrait_file|custom portrait" tests web_app.py web/src ming_sim` | PASS | Confirmed route and no direct test coverage in `tests/`. |
+| `rg -n "client|TestClient|portrait|UploadFile|multipart|files=" tests` | PASS | No existing upload/client tests found. |
+| `git status --short` | PASS | Shows pre-existing Goal 8 source/test changes plus docs modified by this audit. |
+
+### Current status
+- RISK_FOUND: audit completed; no source code was modified this session.
+
+### Remaining blockers
+- Goal 9B should implement filename/path containment, content verification, atomic writes, DB rollback/cleanup, and upload security tests.
+- Existing uncommitted Goal 8 source/test changes remain in the working tree.
+
+### Next recommended action
+- Execute Goal 9B as a scoped patch with tests for malicious names, spoofed content, SVG/non-image payloads, oversized uploads, write/DB failure rollback, and old-avatar preservation.
+
+### Files changed this session
+- `docs/AGENT_PROGRESS.md`
+- `docs/BUG_QUEUE.md`
+- `docs/FIX_LOG.md`
+
+## Session 2026-06-25 08:19 Local
+
+### Goal
+- Goal 9B-Cleanup: clean avatar upload test temp directory leakage, prevent future `git status` pollution from local avatar test temp directories, and verify tests.
+
+### What I inspected
+- `tests/test_avatar_upload_security.py` temp directory fixture and upload dir monkeypatching.
+- `web_app.py` portrait upload directory default and safe path helper.
+- `.gitignore` local temp/cache rules.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`.
+
+### Bugs found
+- [Low] `tests/test_avatar_upload_security.py`: the avatar upload fixture created `test_avatar_upload_tmp/` directly under repo root, and older runs had also left `.test_avatar_upload/` and `.tmp_pytest/` visible to Git.
+- [Low] Local environment: default Python temp paths and `tempfile.TemporaryDirectory` cleanup fail with WinError 5 in this workspace, and recursive cleanup commands are blocked by tool policy or permissions.
+
+### Changes made
+- `.gitignore`: added root-level ignore rules for `/.test_avatar_upload/`, `/.tmp_pytest/`, and `/test_avatar_upload_tmp/`.
+- `tests/test_avatar_upload_security.py`: kept test isolation under ignored `test_avatar_upload_tmp/` with per-test UUID directories and best-effort cleanup, avoiding `.test_avatar_upload/` and `.tmp_pytest/`. A direct `tmp_path`/`TemporaryDirectory` switch was tested but is blocked by local WinError 5 permissions.
+- `docs/AGENT_PROGRESS.md`, `docs/BUG_QUEUE.md`, and `docs/FIX_LOG.md`: recorded Goal 9B-Cleanup verification and remaining physical cleanup blocker.
+
+### Commands run
+| Command | Result | Notes |
+|---|---|---|
+| `rg -n "test_avatar_upload|tmp_pytest|TemporaryDirectory|tmp_path|UPLOAD_PORTRAIT_DIR|mkdtemp|tempfile" tests\test_avatar_upload_security.py web_app.py .gitignore docs\BUG_QUEUE.md docs\FIX_LOG.md docs\AGENT_PROGRESS.md` | PASS | Found the test fixture as the current root temp source; `web_app.py` uses `user_data_path()` by default and only receives test upload dirs through monkeypatching. |
+| Python `tempfile.TemporaryDirectory(...)` probe | FAIL | Default temp path under `C:\Users\Lenovo\AppData\Local\Temp` could create a dir but could not write or clean it due WinError 5. |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_avatar_upload_security.py -q` | FAIL | Attempted `TemporaryDirectory`/`mkdtemp` variants failed in this local sandbox with WinError 5 during child directory creation or cleanup. |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_avatar_upload_security.py -q` | PASS | `9 passed, 2 warnings`; warnings are Starlette `TestClient` deprecation and known `.pytest_cache` permission warning. |
+| `.\.venv\Scripts\python.exe -m pytest -q` | PASS | `61 passed, 2 warnings`; no real LLM API was called. |
+| `git status --short` | PASS | No `.test_avatar_upload/`, `.tmp_pytest/`, or `test_avatar_upload_tmp/` entries appear after `.gitignore` protection. |
+
+### Current status
+- PASS: tests pass and the three temp directories no longer pollute `git status --short`.
+
+### Remaining blockers
+- Physical deletion of old local temp directories remains blocked by tool policy or WinError 5, so they may still exist on disk as ignored local artifacts.
+- Default `tmp_path`/`TemporaryDirectory` locations are not usable in this workspace due local permissions.
+
+### Next recommended action
+- Commit Goal 9B and Goal 9B-Cleanup together after reviewing the diff; manually remove ignored temp directories later if Windows releases the handles/permissions.
+
+### Files changed this session
+- `.gitignore`
+- `tests/test_avatar_upload_security.py`
 - `docs/AGENT_PROGRESS.md`
 - `docs/BUG_QUEUE.md`
 - `docs/FIX_LOG.md`
